@@ -43,7 +43,7 @@ RUN pip install --no-cache-dir datasets==2.18.0
 RUN pip install --no-cache-dir trl==0.8.1 peft==0.10.0
 RUN pip install --no-cache-dir accelerate==0.28.0
 RUN pip install --no-cache-dir jupyterlab
-RUN pip instal2 torch~=2.4.0 torch_xla[tpu]~=2.4.0 -f https://storage.googleapis.com/libtpu-releases/index.html
+RUN pip install --no-cache-dir torch~=2.4.0 torch_xla[tpu]~=2.4.0 -f https://storage.googleapis.com/libtpu-releases/index.html
 
 # Clone the RoadrunnerX repository
 RUN git clone https://github.com/felafax/RoadrunnerX.git

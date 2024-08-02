@@ -6,7 +6,7 @@ PROJECT_ID=$(gcloud config get-value project)
 ZONE="europe-west4-b"  # "us-central1-a" # "europe-west4-b"
 ACCELERATOR_TYPE="v5p-8"
 TPU_VERSION="tpu-vm-tf-2.16.1-pod-pjrt"
-IMAGE_NAME="gcr.io/felafax-training/tunerx-base-v5:latest"
+IMAGE_NAME="gcr.io/felafax-training/roadrunner-pt24:v1"
 CONTAINER_NAME="tunerx-base-container"
 JUPYTER_PORT="8881"
 PERSISTENT_DISK_ENABLE=true
@@ -115,7 +115,6 @@ start_docker_container() {
         sudo docker ps
         
         sudo docker exec $CONTAINER_NAME /bin/bash -c '
-            pip install torch~=2.3.0 torch_xla[tpu]~=2.3.0 torchvision -f https://storage.googleapis.com/libtpu-releases/index.html
             apt update && apt install -y vim
             echo \"export PJRT_DEVICE=TPU\" >> /root/.bashrc
             pip install --upgrade transformers
