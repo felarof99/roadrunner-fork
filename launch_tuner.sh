@@ -119,7 +119,6 @@ start_docker_container() {
             echo \"export PJRT_DEVICE=TPU\" >> /root/.bashrc
             pip install --upgrade transformers
             cd /home/
-            git clone https://github.com/felafax/RoadrunnerX.git
         '
         
         sleep 10
