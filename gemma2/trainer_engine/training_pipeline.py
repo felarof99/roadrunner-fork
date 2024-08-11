@@ -201,7 +201,7 @@ def train_loop(
     optimizer: optax.GradientTransformation,
     train_dataloader: torch.utils.data.DataLoader,
     tokenizer: AutoTokenizer,
-    training_cfg: TrainingConfig,
+    training_cfg: Any,
     mesh: Mesh,
 ) -> train_state.TrainState:
     """

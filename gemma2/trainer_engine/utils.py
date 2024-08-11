@@ -3,7 +3,6 @@ import jax.numpy as jnp
 from flax import traverse_util
 from flax.core.meta import Partitioned
 from typing import Any, Dict
-from gemma2.trainer_engine.utils import unbox
 
 def print_params(params: Dict[str, Any]) -> None:
     flat_params = traverse_util.flatten_dict(params)
