@@ -26,7 +26,7 @@ setup.setup_environment()
 # In[2]:
 
 
-get_ipython().run_cell_magic('capture', '', '!pip install --upgrade kagglehub -q\n!pip install ipywidgets -q\n!pip install torch --index-url https://download.pytorch.org/whl/cpu -q\n!pip install git+https://github.com/felafax/gemma.git -q\n!pip install qax -q\n!pip install jax-lorax -q\n')
+# get_ipython().run_cell_magic('capture', '', '!pip install --upgrade kagglehub -q\n!pip install ipywidgets -q\n!pip install torch --index-url https://download.pytorch.org/whl/cpu -q\n!pip install git+https://github.com/felafax/gemma.git -q\n!pip install qax -q\n!pip install jax-lorax -q\n')
 
 
 # In[3]:
@@ -55,7 +55,10 @@ hugging_face_token=HUGGINGFACE_TOKEN
 # In[14]:
 
 
-get_ipython().run_cell_magic('capture', '', "from huggingface_hub import snapshot_download\n# Download the model to disk.\nckpt_path = snapshot_download(repo_id=MODEL_NAME, token=HUGGINGFACE_TOKEN)\nvocab_path = os.path.join(ckpt_path, 'tokenizer.model')\n")
+from huggingface_hub import snapshot_download
+# Download the model to disk.
+ckpt_path = snapshot_download(repo_id=MODEL_NAME, token=HUGGINGFACE_TOKEN)
+vocab_path = os.path.join(ckpt_path, 'tokenizer.model')
 
 
 # In[15]:
