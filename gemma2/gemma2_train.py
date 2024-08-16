@@ -44,7 +44,7 @@ training_pipeline = import_local_module("trainer_engine.training_pipeline")
 
 
 # HuggingFace username and token to use when downloading.
-MODEL_NAME="felafax/gemma-2-2b-it-JAX"
+MODEL_NAME="felafax/gemma-2-9b-it-JAX"
 HUGGINGFACE_USERNAME = input("INPUT: Please provide your HUGGINGFACE_USERNAME: ")
 HUGGINGFACE_TOKEN = input("INPUT: Please provide your HUGGINGFACE_TOKEN: ")
 
@@ -65,8 +65,8 @@ vocab_path = os.path.join(ckpt_path, 'tokenizer.model')
 
 
 # Load the downloaded model.
-params = {"params": params_lib.load_and_format_params(os.path.join(ckpt_path, 'gemma2-2b-it'))['transformer']}
-model_config = transformer_lib.TransformerConfig.gemma2_2b(cache_size=30)
+params = {"params": params_lib.load_and_format_params(os.path.join(ckpt_path, 'gemma2-9b-it'))['transformer']}
+model_config = transformer_lib.TransformerConfig.gemma2_9b(cache_size=30)
 model = transformer_lib.Transformer(config=model_config)
 tokenizer = AutoTokenizer.from_pretrained(
     MODEL_NAME, 
@@ -171,7 +171,7 @@ class TrainingConfig:
   max_steps: int | None = None  # Maximum number of training steps (if None, train for full num_epochs)
 
   # Dataset config
-  batch_size: int = 512
+  batch_size: int = 64 
   max_length: int = 512  # Max sequence length during fine-tuning
   dataset_size_limit: int | None = None    # Limit on number of dataset rows for faster training (if None, use full dataset)
 
@@ -200,7 +200,9 @@ optimizer = optax.sgd(training_cfg.learning_rate)
 
 # Set up the device mesh for distributing the model across TPU cores and do model parallel training.
 devices = jax.devices()
-device_mesh = mesh_utils.create_device_mesh((1, 4, 1))
+device_count = len(devices)
+print("NTN device count", device_count)
+device_mesh = mesh_utils.create_device_mesh((1, device_count, 1))
 mesh = Mesh(devices=device_mesh, axis_names=('data', 'model', 'replica'))
 
 
