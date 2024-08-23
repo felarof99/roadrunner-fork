@@ -20,73 +20,68 @@ from trainer_engine import config_lib
 
 
 class LlamaConfig(object):
-    """Simplified LLaMA configuration. We start from a base model and
-    allow for easy updates to the configuration.
-    """
+    """Simplified LLaMA configuration."""
 
     @classmethod
     def get_standard_llama_config(cls, model_name):
-        config = config_lib.config_dict()
-        config.base_model = "llama_3b"
-        config.vocab_size = 32000
-        config.hidden_size = 3200
-        config.intermediate_size = 8640
-        config.num_hidden_layers = 26
-        config.num_attention_heads = 32
-        config.num_key_value_heads = 32
-        config.initializer_range = 0.02
-        config.rms_norm_eps = 1e-6
-        config.max_position_embeddings = 2048
-        config.rope_theta = 1e4
-        config.embedding_dropout = 0.0
-        config.feedforward_dropout = 0.0
-        config.attention_dropout = 0.0
-        config.residue_dropout = 0.0
-        config.remat_policy = "nothing_saveable"
-        config.scan_attention = False
-        config.scan_mlp = False
-        config.scan_query_chunk_size = 1024
-        config.scan_key_chunk_size = 1024
-        config.scan_mlp_chunk_size = 1024
-        config.fcm_min_ratio = 0.0
-        config.fcm_max_ratio = 0.0
+        base_config = {
+            "base_model": "llama_3b",
+            "vocab_size": 32000,
+            "hidden_size": 3200,
+            "intermediate_size": 8640,
+            "num_hidden_layers": 26,
+            "num_attention_heads": 32,
+            "num_key_value_heads": 32,
+            "initializer_range": 0.02,
+            "rms_norm_eps": 1e-6,
+            "max_position_embeddings": 2048,
+            "rope_theta": 1e4,
+            "embedding_dropout": 0.0,
+            "feedforward_dropout": 0.0,
+            "attention_dropout": 0.0,
+            "residue_dropout": 0.0,
+            "remat_policy": "nothing_saveable",
+            "scan_attention": False,
+            "scan_mlp": False,
+            "scan_query_chunk_size": 1024,
+            "scan_key_chunk_size": 1024,
+            "scan_mlp_chunk_size": 1024,
+            "fcm_min_ratio": 0.0,
+            "fcm_max_ratio": 0.0,
+        }
 
-        updates = {
-            "debug": dict(
-                base_model="debug",
-                hidden_size=128,
-                intermediate_size=256,
-                num_hidden_layers=2,
-                num_attention_heads=4,
-                num_key_value_heads=4,
-                rms_norm_eps=1e-6,
-            ),
-            "llama3_8b": dict(
-                base_model="llama3_8b",
-                vocab_size=128256,
-                hidden_size=4096,
-                intermediate_size=14336,
-                num_hidden_layers=32,
-                num_attention_heads=32,
-                num_key_value_heads=8,
-                max_position_embeddings=8192,
-                rms_norm_eps=1e-5,
-                rope_theta=5e5,
-            ),
-            "llama3_70b": dict(
-                base_model="llama3_8b",
-                vocab_size=128256,
-                hidden_size=8192,
-                intermediate_size=28672,
-                num_hidden_layers=80,
-                num_attention_heads=64,
-                num_key_value_heads=8,
-                max_position_embeddings=8192,
-                rms_norm_eps=1e-5,
-                rope_theta=5e5,
-            ),
-        }[model_name]
-        return config_lib.update_config_dict(config, updates)
+        model_configs = {
+            "llama3_8b": {
+                "base_model": "llama3_8b",
+                "vocab_size": 128256,
+                "hidden_size": 4096,
+                "intermediate_size": 14336,
+                "num_hidden_layers": 32,
+                "num_attention_heads": 32,
+                "num_key_value_heads": 8,
+                "max_position_embeddings": 8192,
+                "rms_norm_eps": 1e-5,
+                "rope_theta": 5e5,
+            },
+            "llama3_70b": {
+                "base_model": "llama3_8b",
+                "vocab_size": 128256,
+                "hidden_size": 8192,
+                "intermediate_size": 28672,
+                "num_hidden_layers": 80,
+                "num_attention_heads": 64,
+                "num_key_value_heads": 8,
+                "max_position_embeddings": 8192,
+                "rms_norm_eps": 1e-5,
+                "rope_theta": 5e5,
+            },
+        }
+
+        config = config_lib.config_dict()
+        config.update(base_config)
+        if model_name in model_configs:
+            config.update(model_configs[model_name])
+        return config
 
     @classmethod
     def finalize_config(cls, config):
