@@ -8,7 +8,7 @@ import msgpack
 
 from trainer_engine import config_lib
 from .config_lib import config_dict, update_config_dict
-from .jax_utils import tree_apply, float_tensor_to_dtype
+from .utils import tree_apply, float_tensor_to_dtype
 
 
 class Checkpointer(object):

@@ -32,8 +32,8 @@ from jax.experimental import mesh_utils
 from jax.experimental.pjit import pjit
 
 # Local imports
-from trainer_engine import jax_utils
-from trainer_engine.jax_utils import cross_entropy_loss_and_accuracy
+from trainer_engine import utils
+from trainer_engine.utils import cross_entropy_loss_and_accuracy
 from trainer_engine import llama_model
 from trainer_engine import checkpoint_lib 
 
@@ -42,7 +42,7 @@ import torch
 
 
 def init_fn(rng, model, seq_length, optimizer):
-    rng_generator = jax_utils.JaxRNG(rng)
+    rng_generator = utils.JaxRNG(rng)
     params = model.init(
         input_ids=jnp.zeros((4, seq_length), dtype=jnp.int32),
         position_ids=jnp.zeros((4, seq_length), dtype=jnp.int32),
@@ -79,8 +79,8 @@ def get_sharded_create_trainstate_from_params(state_partitioned):
 
 
 def train_step(state, rng, batch):
-    rng_generator = jax_utils.JaxRNG(rng)
-    batch = jax_utils.with_sharding_constraint(batch, PS(("dp", "fsdp")))
+    rng_generator = utils.JaxRNG(rng)
+    batch = utils.with_sharding_constraint(batch, PS(("dp", "fsdp")))
 
     def loss_and_accuracy(params):
         logits = state.apply_fn(
@@ -89,7 +89,7 @@ def train_step(state, rng, batch):
             deterministic=False,
             rngs=rng_generator(llama_model.LlamaConfig.rng_keys()),
         ).logits
-        return jax_utils.cross_entropy_loss_and_accuracy(
+        return utils.cross_entropy_loss_and_accuracy(
             logits, batch["target_tokens"], batch["loss_masks"]
         )
 
@@ -122,9 +122,9 @@ def train_loop(
     mesh: Mesh,
     model_path: str,
 ) -> train_state.TrainState:
-    # initalizes rng generator in jax_utils
-    jax_utils.init_rng(99)
-    jax_utils.next_rng()
+    # initalizes rng generator in utils
+    utils.init_rng(99)
+    utils.next_rng()
 
     devices = jax.devices()
     device_count = len(devices)
@@ -133,11 +133,11 @@ def train_loop(
 
     state_shapes = get_state_shapes(model, training_cfg.max_length, optimizer)
 
-    state_shapes_partitioned = jax_utils.match_partition_rules(
+    state_shapes_partitioned = utils.match_partition_rules(
         llama_model.LlamaConfig.get_partition_rules(), state_shapes
     )
 
-    shard_fns, gather_fns = jax_utils.make_shard_and_gather_fns(
+    shard_fns, gather_fns = utils.make_shard_and_gather_fns(
         state_shapes_partitioned, state_shapes
     )
 
@@ -174,7 +174,7 @@ def train_loop(
                 # Place the batch on the appropriate devices
                 train_batch = jax.device_put(train_batch, NamedSharding(mesh, PS()))
 
-                sharded_rng = jax_utils.next_rng()
+                sharded_rng = utils.next_rng()
 
                 # Perform a single training step
                 state, sharded_rng, metrics = sharded_train_step(

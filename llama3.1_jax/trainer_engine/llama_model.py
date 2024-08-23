@@ -15,7 +15,7 @@ from transformers.configuration_utils import PretrainedConfig
 from transformers.modeling_flax_outputs import FlaxBaseModelOutput, FlaxCausalLMOutput
 from transformers.modeling_flax_utils import FlaxPreTrainedModel
 
-from .jax_utils import with_sharding_constraint
+from .utils import with_sharding_constraint
 from trainer_engine import config_lib
 
 

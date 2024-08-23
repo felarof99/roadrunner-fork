@@ -35,7 +35,7 @@ get_ipython().run_cell_magic('capture', '', '!pip install --upgrade kagglehub -q
 globals().update(setup.setup_imports())
 
 utils = import_local_module("trainer_engine.utils")
-jax_utils = import_local_module("trainer_engine.jax_utils")
+utils = import_local_module("trainer_engine.utils")
 llama_model = import_local_module("trainer_engine.llama_model")
 checkpoint_lib = import_local_module("trainer_engine.checkpoint_lib")
 training_pipeline = import_local_module("trainer_engine.training_pipeline")
