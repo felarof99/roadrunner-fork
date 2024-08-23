@@ -25,7 +25,7 @@ class LlamaConfig(object):
     @classmethod
     def get_standard_llama_config(cls, model_name):
         base_config = {
-            "base_model": "llama_3b",
+            "base_model": "llama_test",
             "vocab_size": 32000,
             "hidden_size": 3200,
             "intermediate_size": 8640,
@@ -37,17 +37,8 @@ class LlamaConfig(object):
             "max_position_embeddings": 2048,
             "rope_theta": 1e4,
             "embedding_dropout": 0.0,
-            "feedforward_dropout": 0.0,
             "attention_dropout": 0.0,
             "residue_dropout": 0.0,
-            "remat_policy": "nothing_saveable",
-            "scan_attention": False,
-            "scan_mlp": False,
-            "scan_query_chunk_size": 1024,
-            "scan_key_chunk_size": 1024,
-            "scan_mlp_chunk_size": 1024,
-            "fcm_min_ratio": 0.0,
-            "fcm_max_ratio": 0.0,
         }
 
         model_configs = {
@@ -464,9 +455,6 @@ class TransformerBlock(nn.Module):
         hidden_states = hidden_states + attn_output
 
         feed_forward_input = self.ffn_norm(hidden_states)
-
-        if self.config.scan_mlp:
-            raise NotImplementedError("ScanMLP is not implemented yet.")
 
         feed_forward_hidden_states = self.feed_forward(
             feed_forward_input,
