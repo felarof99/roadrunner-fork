@@ -26,11 +26,21 @@ import numpy as np
 from transformers import FlaxLogitsWarper
 from jax.sharding import Mesh, NamedSharding
 
+utils_rng = None
 
-class JaxRNG(object):
-    """ A convenient stateful Jax RNG wrapper. Can be used to wrap RNG inside
-        pure function.
-    """
+
+def init_rng(seed):
+    global utils_rng
+    utils_rng = NextRNG.from_seed(seed)
+
+
+def next_rng(*args, **kwargs):
+    global utils_rng
+    return utils_rng(*args, **kwargs)
+
+
+class NextRNG(object):
+    """Stateful RNG generator, generate and delete within pure function."""
 
     @classmethod
     def from_seed(cls, seed):
@@ -54,9 +64,8 @@ class JaxRNG(object):
 
 
 def make_shard_and_gather_fns(partition_specs, dtype_specs=None):
-    """ Create pytree of sharding and gathering functions from pytree of
-        partition specs.
-    """
+    """Creates pytree of sharding and gathering functions from pytree of partition specs."""
+    
     float_dtypes = (jnp.bfloat16, jnp.float16, jnp.float32, jnp.float64)
 
     def make_to_dtype_fn(dtype_spec):
@@ -102,12 +111,6 @@ def make_shard_and_gather_fns(partition_specs, dtype_specs=None):
     return shard_fns, gather_fns
 
 
-def set_random_seed(seed):
-    np.random.seed(seed)
-    random.seed(seed)
-    init_rng(seed)
-
-
 def names_in_current_mesh(*names):
     """ Check if current mesh axes contain these names. """
     mesh_axis_names = pxla.thread_resources.env.physical_mesh.axis_names
@@ -139,15 +142,6 @@ def with_sharding_constraint(x, partition_specs):
         x = jax.lax.with_sharding_constraint(x, partition_specs)
     return x
 
-def init_rng(seed):
-    global utils_rng
-    utils_rng = JaxRNG.from_seed(seed)
-
-
-def next_rng(*args, **kwargs):
-    global utils_rng
-    return utils_rng(*args, **kwargs)
-
 def cross_entropy_loss_and_accuracy(logits, tokens, valid=None):
     if valid is None:
         valid = jnp.ones(tokens.shape[:2])
@@ -178,7 +172,6 @@ def global_norm(tree):
     squared = jax.tree_util.tree_map(lambda x: jnp.sum(jnp.square(x)), tree)
     flattened, _ = jax.flatten_util.ravel_pytree(squared)
     return jnp.sqrt(jnp.sum(flattened))
-
 
 
 def get_float_dtype_by_name(dtype):
@@ -262,11 +255,9 @@ def match_partition_rules(rules, params):
     return named_tree_map(get_partition_spec, params, sep='/')
 
 
-
 def tree_apply(fns, tree):
     """ Apply a pytree of functions to the pytree. """
     return jax.tree_util.tree_map(lambda fn, x: fn(x), fns, tree)
-
 
 
 def print_params(params: Dict[str, Any]) -> None:

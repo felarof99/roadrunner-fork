@@ -42,7 +42,7 @@ import torch
 
 
 def init_fn(rng, model, seq_length, optimizer):
-    rng_generator = utils.JaxRNG(rng)
+    rng_generator = utils.NextRNG(rng)
     params = model.init(
         input_ids=jnp.zeros((4, seq_length), dtype=jnp.int32),
         position_ids=jnp.zeros((4, seq_length), dtype=jnp.int32),
@@ -79,7 +79,7 @@ def get_sharded_create_trainstate_from_params(state_partitioned):
 
 
 def train_step(state, rng, batch):
-    rng_generator = utils.JaxRNG(rng)
+    rng_generator = utils.NextRNG(rng)
     batch = utils.with_sharding_constraint(batch, PS(("dp", "fsdp")))
 
     def loss_and_accuracy(params):
