@@ -20,7 +20,8 @@ def stream_chat_completion(messages):
 
     # model="felarof01/test-llama3.1",
     stream = client.chat.completions.create(
-        model="felarof01/test-llama3.1",  # "felafax/llama-3.1-8B-Instruct-JAX",
+        model=
+        "felarof01/test-llama3.1-8b-instruct",  # "felafax/llama-3.1-8B-Instruct-JAX",
         messages=messages,
         stream=True,
     )
