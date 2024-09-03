@@ -95,7 +95,7 @@ class CausalLMTrainer(FelafaxTrainer):
             print("Loading causal language model...")
             if self.model_params is None:
                 _, self.model_params = self.checkpointer.load_trainstate_checkpoint(
-                    "flax_params::" + self.model_ckpt_path, self.state_shapes,
+                    "orbax::" + self.model_ckpt_path, self.state_shapes,
                     self.shard_fns)
 
             if self.model_params is not None:
@@ -104,7 +104,7 @@ class CausalLMTrainer(FelafaxTrainer):
             else:
                 raise ValueError("Failed to load checkpoint")
 
-        self.load_or_compile_train_step()
+        # self.load_or_compile_train_step()
 
     def load_or_compile_train_step(self):
         try:
@@ -118,15 +118,10 @@ class CausalLMTrainer(FelafaxTrainer):
             )
             self.compile_train_step()
 
-    def compile_train_step(self):
-        print("Compiling train step...")
-        dummy_state = self.create_train_state_from_params(self.model_params)
-        dummy_batch = self.get_dummy_batch()
-
-        aot_train_step = jax.jit(
+    @property
+    def jitted_train_step(self):
+        return jax.jit(
             self.train_step,
-            static_argnums=(2, ),  # rng is static
-            donate_argnums=(0, ),  # Allow reuse of memory for state
             in_shardings=(
                 self.state_shapes_partitioned,  # state
                 NamedSharding(self.mesh, PS()),  # batch
@@ -137,6 +132,13 @@ class CausalLMTrainer(FelafaxTrainer):
                 NamedSharding(self.mesh, PS()),  # new rng
                 NamedSharding(self.mesh, PS())  # metrics
             ))
+        
+    def compile_train_step(self):
+        print("Compiling train step...")
+        dummy_state = self.create_train_state_from_params(self.model_params)
+        dummy_batch = self.get_dummy_batch()
+
+        aot_train_step = self.jitted_train_step()
 
         self.compiled_train_step = aot_train_step.lower(
             dummy_state, dummy_batch, jax.random.PRNGKey(0)).compile()
