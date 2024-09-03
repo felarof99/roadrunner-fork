@@ -169,6 +169,56 @@ class Checkpointer(object):
                     train_state.params["params"], in_place=True))
 
     @staticmethod
+    def save_train_state_to_file(train_state, path, gather_fns=None, float_dtype=None):
+        train_state = to_state_dict(train_state)
+        packer = msgpack.Packer()
+        flattend_train_state = flatten_dict(train_state)
+        if gather_fns is not None:
+            gather_fns = flatten_dict(to_state_dict(gather_fns))
+
+        with utils.open_file(path, "wb") as fout:
+            for key, value in flattend_train_state.items():
+                if gather_fns is not None:
+                    value = gather_fns[key](value)
+                value = float_tensor_to_dtype(value, float_dtype)
+                fout.write(packer.pack((key, to_bytes(value))))
+
+    @staticmethod
+    def load_checkpoint(path, target=None, shard_fns=None, remove_dict_prefix=None):
+        if shard_fns is not None:
+            shard_fns = flatten_dict(to_state_dict(shard_fns))
+        if remove_dict_prefix is not None:
+            remove_dict_prefix = tuple(remove_dict_prefix)
+        flattend_train_state = {}
+        with utils.open_file(path) as fin:
+            # 83886080 bytes = 80 MB, which is 16 blocks on GCS
+            unpacker = msgpack.Unpacker(fin, read_size=83886080, max_buffer_size=0)
+            for key, value in unpacker:
+                key = tuple(key)
+                if remove_dict_prefix is not None:
+                    if key[:len(remove_dict_prefix)] == remove_dict_prefix:
+                        key = key[len(remove_dict_prefix):]
+                    else:
+                        continue
+
+                tensor = from_bytes(None, value)
+                if shard_fns is not None:
+                    tensor = shard_fns[key](tensor)
+                flattend_train_state[key] = tensor
+
+        if target is not None:
+            flattened_target = flatten_dict(to_state_dict(target), keep_empty_nodes=True)
+            for key, value in flattened_target.items():
+                if key not in flattend_train_state and value == empty_node:
+                    flattend_train_state[key] = value
+
+        train_state = unflatten_dict(flattend_train_state)
+        if target is None:
+            return train_state
+
+        return from_state_dict(target, train_state)
+
+    @staticmethod
     def _load_flax_checkpoint(path, param_shapes=None, shard_fns=None):
         """Load a standard flax checkpoint that's not saved with the
         msgpack streaming format.
@@ -241,6 +291,30 @@ class Checkpointer(object):
                 param_shapes=param_shapes,
                 shard_fns=params_shard_fns)
             restored_params = {"params": restored_params}
+        elif load_type == "trainstate":
+            # Load the entire train state in the streaming format
+            train_state = cls.load_checkpoint(
+                path=load_path,
+                target=state_shapes,
+                shard_fns=shard_fns,
+            )
+        elif load_type == "trainstate_params":
+            # Load the params part of the train state in the streaming format
+            restored_params = cls.load_checkpoint(
+                path=load_path,
+                target=param_shapes,
+                shard_fns=params_shard_fns,
+                remove_dict_prefix=('params', 'params'),
+            )
+            restored_params = {'params': restored_params}
+        elif load_type == "params":
+            # Load the params in the streaming format
+            restored_params = cls.load_checkpoint(
+                path=load_path,
+                target=param_shapes,
+                shard_fns=params_shard_fns,
+            )
+            restored_params = {'params': restored_params}
         else:
             raise ValueError(f"Invalid load_from type: {load_type}")
 
