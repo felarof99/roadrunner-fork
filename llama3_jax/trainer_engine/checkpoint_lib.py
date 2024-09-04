@@ -273,10 +273,11 @@ class Checkpointer(object):
             tuple: (train_state, restored_params)
         """
         # Extract the parameters param_shapes from the state_shapes if provided
-        if state_shapes is not None:
-            param_shapes = state_shapes.params["params"]
-        else:
-            param_shapes = None
+        # if state_shapes is not None:
+        #     param_shapes = state_shapes.params["params"]
+        # else:
+        #     param_shapes = None
+        param_shapes = state_shapes
 
         # Extract the parameter shard functions if provided
         if shard_fns is not None:
