@@ -204,12 +204,12 @@ class Checkpointer(object):
                 tensor = from_bytes(None, value)
                 if shard_fns is not None:
                     # Adjust the key to match the structure in shard_fns
-                    # tensor = shard_fns[key](tensor)
-                    adjusted_key = ('params', 'params') + key
-                    if adjusted_key in shard_fns:
-                        tensor = shard_fns[adjusted_key](tensor)
-                    else:
-                        print(f"Warning: No shard function found for key {adjusted_key}")
+                    tensor = shard_fns[key](tensor)
+                    # adjusted_key = ('params', 'params') + key
+                    # if adjusted_key in shard_fns:
+                    #     tensor = shard_fns[adjusted_key](tensor)
+                    # else:
+                    #     print(f"Warning: No shard function found for key {adjusted_key}")
                 flattend_train_state[key] = tensor
 
         if target is not None:
