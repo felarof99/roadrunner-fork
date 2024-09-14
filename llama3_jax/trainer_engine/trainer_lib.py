@@ -309,8 +309,11 @@ class CausalLMTrainer(FelafaxTrainer):
                         state, train_batch, sharded_rng)
 
                 if step % self.training_config.print_every_n_steps == 0:
+                    # Convert JAX array values to Python scalars
+                    loss = jax.device_get(metrics['loss']).item()
+                    accuracy = jax.device_get(metrics['accuracy']).item()
                     print(
-                        f"Epoch {epoch}, Step {step}, Train Loss: {metrics['loss']:.4f}, Accuracy: {metrics['accuracy']:.4f}"
+                        f"Epoch {epoch}, Step {step}, Train Loss: {loss}, Accuracy: {accuracy:.4f}"
                     )
 
                 # if step % self.training_config.eval_every_n_steps == 0:

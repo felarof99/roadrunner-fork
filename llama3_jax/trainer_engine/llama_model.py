@@ -52,15 +52,15 @@ def apply_rotary_emb(
     with jax.ensure_compile_time_eval():
         dim = xq.shape[-1]
         freqs = 1.0 / (theta**(
-            jnp.arange(0, dim, 2)[:(dim // 2)].astype(jnp.bfloat16) / dim))
+            jnp.arange(0, dim, 2)[:(dim // 2)].astype(jnp.float32) / dim))
         t = jnp.arange(max_pos)
-        freqs = jnp.outer(t, freqs).astype(jnp.bfloat16)
+        freqs = jnp.outer(t, freqs).astype(jnp.float32)
         sin, cos = jnp.sin(freqs), jnp.cos(freqs)
         freqs_cis = jnp.complex64(cos + 1j * sin)
 
     freqs_cis = jnp.take(freqs_cis, position_ids, axis=0)
-    reshape_xq = xq.astype(jnp.bfloat16).reshape(*xq.shape[:-1], -1, 2)
-    reshape_xk = xk.astype(jnp.bfloat16).reshape(*xk.shape[:-1], -1, 2)
+    reshape_xq = xq.astype(jnp.float32).reshape(*xq.shape[:-1], -1, 2)
+    reshape_xk = xk.astype(jnp.float32).reshape(*xk.shape[:-1], -1, 2)
 
     xq_ = jax.lax.complex(reshape_xq[..., 0], reshape_xq[..., 1])
     xk_ = jax.lax.complex(reshape_xk[..., 0], reshape_xk[..., 1])
