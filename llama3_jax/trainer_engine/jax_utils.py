@@ -69,9 +69,17 @@ class NextRNG(object):
 # TODO: avoid defining mesh globally.
 DEVICES = jax.devices()
 DEVICE_COUNT = len(DEVICES)
-DEVICE_MESH = mesh_utils.create_device_mesh(
-    (DEVICE_COUNT // 2, DEVICE_COUNT // 2, 1))
-MESH = Mesh(devices=DEVICE_MESH, axis_names=("dp", "fsdp", "mp"))
+
+if DEVICE_COUNT == 8:
+    DEVICE_MESH = mesh_utils.create_device_mesh((1, 8, 1))
+    MESH = Mesh(devices=DEVICE_MESH, axis_names=("dp", "fsdp", "mp"))
+elif DEVICE_COUNT == 4:
+    DEVICE_MESH = mesh_utils.create_device_mesh((2, 2, 1))
+    MESH = Mesh(devices=DEVICE_MESH, axis_names=("dp", "fsdp", "mp"))
+else:
+    # Fallback to the original configuration for other device counts
+    DEVICE_MESH = mesh_utils.create_device_mesh((1, 1, 1))
+    MESH = Mesh(devices=DEVICE_MESH, axis_names=("dp", "fsdp", "mp"))
 
 
 def apply_sharding_constraint(x, partition_spec):
@@ -164,9 +172,9 @@ def match_partition_rules(rules, params):
 def cross_entropy_loss_and_accuracy(logits, tokens, valid=None):
     if valid is None:
         valid = jnp.ones(tokens.shape[:2])
-    valid = valid.astype(jnp.float32)
+    valid = valid.astype(jnp.bfloat16)
     valid_text_length = jnp.maximum(jnp.sum(valid, axis=-1), 1e-10)
-    logits = logits.astype(jnp.float32)  # for numerical stability
+    logits = logits.astype(jnp.bfloat16)  # for numerical stability
     token_log_prob = jnp.squeeze(
         jnp.take_along_axis(
             jax.nn.log_softmax(logits, axis=-1),

@@ -18,8 +18,8 @@ from . import jax_utils
 class RMSNorm(nn.Module):
     dim: int
     eps: float = 1e-6
-    dtype: jnp.dtype = jnp.float32
-    param_dtype: jnp.dtype = jnp.float32
+    dtype: jnp.dtype = jnp.bfloat16
+    param_dtype: jnp.dtype = jnp.bfloat16
 
     def setup(self) -> None:
         self.weight = self.param(
@@ -34,7 +34,7 @@ class RMSNorm(nn.Module):
             jnp.square(x).mean(-1, keepdims=True) + self.eps)
 
     def __call__(self, x: jnp.ndarray) -> jnp.ndarray:
-        x = x.astype(jnp.promote_types(self.dtype, jnp.float32))
+        x = x.astype(jnp.promote_types(self.dtype, jnp.bfloat16))
         output = self._norm(x).astype(self.dtype)
         weight = jnp.asarray(self.weight, self.dtype)
         return output * weight
@@ -52,15 +52,15 @@ def apply_rotary_emb(
     with jax.ensure_compile_time_eval():
         dim = xq.shape[-1]
         freqs = 1.0 / (theta**(
-            jnp.arange(0, dim, 2)[:(dim // 2)].astype(jnp.float32) / dim))
+            jnp.arange(0, dim, 2)[:(dim // 2)].astype(jnp.bfloat16) / dim))
         t = jnp.arange(max_pos)
-        freqs = jnp.outer(t, freqs).astype(jnp.float32)
+        freqs = jnp.outer(t, freqs).astype(jnp.bfloat16)
         sin, cos = jnp.sin(freqs), jnp.cos(freqs)
         freqs_cis = jnp.complex64(cos + 1j * sin)
 
     freqs_cis = jnp.take(freqs_cis, position_ids, axis=0)
-    reshape_xq = xq.astype(jnp.float32).reshape(*xq.shape[:-1], -1, 2)
-    reshape_xk = xk.astype(jnp.float32).reshape(*xk.shape[:-1], -1, 2)
+    reshape_xq = xq.astype(jnp.bfloat16).reshape(*xq.shape[:-1], -1, 2)
+    reshape_xk = xk.astype(jnp.bfloat16).reshape(*xk.shape[:-1], -1, 2)
 
     xq_ = jax.lax.complex(reshape_xq[..., 0], reshape_xq[..., 1])
     xk_ = jax.lax.complex(reshape_xk[..., 0], reshape_xk[..., 1])
@@ -83,8 +83,8 @@ class Attention(nn.Module):
     """
 
     config: PretrainedConfig
-    dtype: jnp.dtype = jnp.float32
-    param_dtype: jnp.dtype = jnp.float32
+    dtype: jnp.dtype = jnp.bfloat16
+    param_dtype: jnp.dtype = jnp.bfloat16
     precision: Optional[Union[jax.lax.Precision, str]] = None
 
     def setup(self):
@@ -230,7 +230,7 @@ class Attention(nn.Module):
             dropout_rng=dropout_rng,
             dropout_rate=self.config.attention_dropout,
             deterministic=deterministic,
-            dtype=jnp.promote_types(self.dtype, jnp.float32),
+            dtype=jnp.promote_types(self.dtype, jnp.bfloat16),
             precision=self.precision,
         )
 
@@ -260,8 +260,8 @@ class Attention(nn.Module):
 
 class FeedForward(nn.Module):
     config: PretrainedConfig
-    dtype: jnp.dtype = jnp.float32
-    param_dtype: jnp.dtype = jnp.float32
+    dtype: jnp.dtype = jnp.bfloat16
+    param_dtype: jnp.dtype = jnp.bfloat16
     precision: Optional[Union[jax.lax.Precision, str]] = None
 
     def setup(self) -> None:
@@ -306,8 +306,8 @@ class FeedForward(nn.Module):
 
 class TransformerBlock(nn.Module):
     config: PretrainedConfig
-    dtype: jnp.dtype = jnp.float32
-    param_dtype: jnp.dtype = jnp.float32
+    dtype: jnp.dtype = jnp.bfloat16
+    param_dtype: jnp.dtype = jnp.bfloat16
     precision: Optional[Union[jax.lax.Precision, str]] = None
 
     def setup(self) -> None:
@@ -374,8 +374,8 @@ class TransformerBlock(nn.Module):
 
 class TransformerBlockCollection(nn.Module):
     config: PretrainedConfig
-    dtype: jnp.dtype = jnp.float32
-    param_dtype: jnp.dtype = jnp.float32
+    dtype: jnp.dtype = jnp.bfloat16
+    param_dtype: jnp.dtype = jnp.bfloat16
     precision: Optional[Union[jax.lax.Precision, str]] = None
 
     def setup(self):
@@ -431,8 +431,8 @@ class TransformerBlockCollection(nn.Module):
 
 class LlamaModule(nn.Module):
     config: PretrainedConfig
-    dtype: jnp.dtype = jnp.float32
-    param_dtype: jnp.dtype = jnp.float32
+    dtype: jnp.dtype = jnp.bfloat16
+    param_dtype: jnp.dtype = jnp.bfloat16
     precision: Optional[Union[jax.lax.Precision, str]] = None
 
     def setup(self):
@@ -506,8 +506,8 @@ class LlamaModule(nn.Module):
 
 class CausalLlamaModule(nn.Module):
     config: PretrainedConfig
-    dtype: jnp.dtype = jnp.float32
-    param_dtype: jnp.dtype = jnp.float32
+    dtype: jnp.dtype = jnp.bfloat16
+    param_dtype: jnp.dtype = jnp.bfloat16
     precision: Optional[Union[jax.lax.Precision, str]] = None
 
     def setup(self):

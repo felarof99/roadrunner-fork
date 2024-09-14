@@ -167,7 +167,7 @@ class TrainerConfig:
     learning_rate: float = 1e-4
     num_epochs: int = 1
     max_steps: int | None = 5
-    batch_size: int = 16
+    batch_size: int = 1
     seq_length: int = 64
     dataset_size_limit: int | None = None
     print_every_n_steps: int = 5

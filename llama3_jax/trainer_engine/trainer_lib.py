@@ -87,8 +87,12 @@ class CausalLMTrainer(FelafaxTrainer):
         self.state_shapes_partitioned = jax_utils.match_partition_rules(
             self.model_configurator.get_partition_rules(), self.state_shapes)
 
-        self.shard_fns, self.gather_fns = checkpoint_lib.make_shard_and_gather_fns(
-            self.state_shapes_partitioned, self.state_shapes, dtype_specs=jnp.float8)
+        self.shard_fns, self.gather_fns = (
+            checkpoint_lib.make_shard_and_gather_fns(
+                self.state_shapes_partitioned,
+                self.state_shapes,
+            )
+        )
 
         jax_utils.init_rng(99)
         jax_utils.next_rng()
@@ -165,7 +169,7 @@ class CausalLMTrainer(FelafaxTrainer):
             "target_tokens":
             jnp.zeros((4, self.training_config.seq_length), dtype=jnp.int32),
             "loss_masks":
-            jnp.ones((4, self.training_config.seq_length), dtype=jnp.float32),
+            jnp.ones((4, self.training_config.seq_length), dtype=jnp.bfloat16),
         }
 
     def get_state_shapes(self):

@@ -100,19 +100,11 @@ def float_tensor_to_dtype(tensor, dtype):
 def make_shard_and_gather_fns(partition_specs, dtype_specs=None):
     """Creates pytree of sharding and gathering functions from pytree of partition specs."""
 
-    float_dtypes = (jnp.bfloat16, jnp.float16, jnp.float32, jnp.float64)
-
     def make_to_dtype_fn(dtype_spec):
-
         def to_dtype(tensor):
-            if dtype_specs in float_dtypes and getattr(tensor, 'dtype',
-                                                       None) in float_dtypes:
-                # Convert all float tensors to the same dtype
-                return tensor.astype(dtype_specs)
-            elif hasattr(dtype_spec, 'dtype') and hasattr(tensor, 'dtype'):
-                return tensor.astype(dtype_spec.dtype)
+            if tensor.dtype in (jnp.float32, jnp.float64, jnp.bfloat16):
+                return tensor.astype(jnp.bfloat16)
             return tensor
-
         return to_dtype
 
     def make_shard_fn(partition_spec, dtype_spec=None):
@@ -147,14 +139,9 @@ def make_shard_and_gather_fns(partition_specs, dtype_specs=None):
 
         return gather_fn
 
-    if dtype_specs is None or dtype_specs in float_dtypes:
-        shard_fns = jax.tree_util.tree_map(make_shard_fn, partition_specs)
-        gather_fns = jax.tree_util.tree_map(make_gather_fn, partition_specs)
-    else:
-        shard_fns = jax.tree_util.tree_map(make_shard_fn, partition_specs,
-                                           dtype_specs)
-        gather_fns = jax.tree_util.tree_map(make_gather_fn, partition_specs,
-                                            dtype_specs)
+    shard_fns = jax.tree_util.tree_map(make_shard_fn, partition_specs)
+    gather_fns = jax.tree_util.tree_map(make_gather_fn, partition_specs)
+
     return shard_fns, gather_fns
 
 
