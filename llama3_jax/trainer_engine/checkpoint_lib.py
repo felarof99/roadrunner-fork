@@ -227,17 +227,34 @@ class Checkpointer(object):
                         continue
 
                 tensor = from_bytes(None, value)
-                if shard_fns is not None:
+                
+                # Check if the key exists in shard_fns
+                if shard_fns is not None and key in shard_fns:
                     tensor = shard_fns[key](tensor)
+                elif shard_fns is not None:
+                    print(f"Warning: Key {key} not found in shard_fns. Skipping sharding for this tensor.")
+
                 flattend_train_state[key] = tensor
 
         if target is not None:
-            flattened_target = flatten_dict(
-                to_state_dict(target), keep_empty_nodes=True
-            )
+            flattened_target = flatten_dict(to_state_dict(target), keep_empty_nodes=True)
             for key, value in flattened_target.items():
-                if key not in flattend_train_state and value == empty_node:
-                    flattend_train_state[key] = value
+                if key not in flattend_train_state:
+                    if 'lora_a' in key or 'lora_b' in key:
+                        print(f"Initializing new LoRA parameter: {key}")
+                        shape = value.shape
+                        dtype = value.dtype
+                        if 'lora_a' in key:
+                            # Initialize lora_a with small random values
+                            flattend_train_state[key] = jax.random.normal(jax.random.PRNGKey(0), shape) * 0.02
+                        else:
+                            # Initialize lora_b with zeros
+                            flattend_train_state[key] = jnp.zeros(shape, dtype)
+                    elif value == empty_node:
+                        flattend_train_state[key] = value
+                    else:
+                        print(f"Warning: Key {key} not found in checkpoint. Using target value.")
+                        flattend_train_state[key] = value
 
         train_state = unflatten_dict(flattend_train_state)
         if target is None:

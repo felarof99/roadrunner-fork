@@ -39,7 +39,7 @@ class LoRADense(Module):
     @compact
     def __call__(self, inputs: Any) -> Any:
         kernel = self.variable(
-            'constants',
+            'params',
             'kernel',
             self.kernel_init,
             jax.random.PRNGKey(0),  # You might want to pass a proper key
@@ -48,7 +48,7 @@ class LoRADense(Module):
 
         if self.use_bias:
             bias = self.variable(
-                'constants',
+                'params',
                 'bias',
                 self.bias_init,
                 jax.random.PRNGKey(1),  # You might want to pass a proper key
