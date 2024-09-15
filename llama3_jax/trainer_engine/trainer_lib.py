@@ -99,21 +99,25 @@ class CausalLMTrainer(FelafaxTrainer):
                 if self.model_name is None or self.model_name in [
                         "llama-3.1-8B-Instruct-JAX", "llama-3.1-8B-JAX"
                 ]:
-                    _, self.model_params = (
+                    _, variables = (
                         self.checkpointer.load_trainstate_checkpoint(
                             "flax_params::" + self.model_ckpt_path,
                             self.state_shapes, self.shard_fns))
                 else:
-                    _, self.model_params = (
+                    _, variables = (
                         self.checkpointer.load_trainstate_checkpoint(
                             "params::" + self.model_ckpt_path,
                             self.state_shapes, self.shard_fns))
-
-            if self.model_params is not None:
-                self.train_state = self.create_train_state_from_params(
-                    self.model_params)
+                import pdb; pdb.set_trace()
+                # Separate constants and trainable parameters
+                self.constants, self.lora_params = variables.pop('params'), variables.pop('lora_params')
             else:
-                raise ValueError("Failed to load checkpoint")
+                self.constants, self.lora_params = self.model_params.pop('params'), self.model_params.pop('lora_params')
+
+            if self.lora_params is not None:
+                self.train_state = self.create_train_state_from_params(self.lora_params)
+            else:
+                raise ValueError("Failed to load LoRA parameters")
 
         # self.load_or_compile_train_step()
 
@@ -132,7 +136,7 @@ class CausalLMTrainer(FelafaxTrainer):
 
     def compile_train_step(self):
         print("Compiling train step...")
-        dummy_state = self.create_train_state_from_params(self.model_params)
+        dummy_state = self.create_train_state_from_params(self.lora_params)
         dummy_batch = self.get_dummy_batch()
 
         jitted_train_step = jax.jit(
@@ -193,10 +197,12 @@ class CausalLMTrainer(FelafaxTrainer):
                                              tx=optimizer,
                                              apply_fn=model.apply)
 
-    def create_train_state_from_params(self, params):
-        return train_state.TrainState.create(params=params,
-                                             apply_fn=self.model.apply,
-                                             tx=self.optimizer)
+    def create_train_state_from_params(self, lora_params):
+        return train_state.TrainState.create(
+            params=lora_params,
+            apply_fn=self.model.apply,
+            tx=self.optimizer
+        )
 
     @property
     def jitted_train_step(self):
@@ -216,7 +222,7 @@ class CausalLMTrainer(FelafaxTrainer):
     def train_step(self, state, batch, rng):
         rng_generator = jax_utils.NextRNG(rng)
 
-        def loss_and_accuracy(params):
+        def loss_and_accuracy(lora_params):
             # Reshape the input tensors to combine the data parallel dimension with the batch dimension
             input_tokens = batch["input_tokens"].reshape(
                 -1, batch["input_tokens"].shape[-1])
@@ -225,8 +231,9 @@ class CausalLMTrainer(FelafaxTrainer):
             loss_masks = batch["loss_masks"].reshape(
                 -1, batch["loss_masks"].shape[-1])
 
+            variables = {'lora_params': lora_params, 'params': self.constants}
             logits = state.apply_fn(
-                params,
+                variables,
                 input_tokens,
                 deterministic=False,
                 rngs=rng_generator(('params', 'dropout', 'fcm')),
@@ -234,9 +241,6 @@ class CausalLMTrainer(FelafaxTrainer):
             return self.compute_loss(logits, target_tokens, loss_masks)
 
         grad_fn = jax.value_and_grad(loss_and_accuracy, has_aux=True)
-        (loss, accuracy), grads = grad_fn(state.params)
-
-        # Gather gradients from all devices
         (loss, accuracy), grads = grad_fn(state.params)
 
         state = state.apply_gradients(grads=grads)
@@ -259,8 +263,9 @@ class CausalLMTrainer(FelafaxTrainer):
         )
 
     def eval_step(self, state, batch):
+        variables = {'lora_params': state.params, 'params': self.constants}
         logits = state.apply_fn(
-            state.params,
+            variables,
             batch["input_tokens"],
             deterministic=True,
         ).logits
