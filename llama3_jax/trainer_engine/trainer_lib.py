@@ -108,7 +108,7 @@ class CausalLMTrainer(FelafaxTrainer):
                         self.checkpointer.load_trainstate_checkpoint(
                             "params::" + self.model_ckpt_path,
                             self.state_shapes, self.shard_fns))
-                import pdb; pdb.set_trace()
+
                 # Separate constants and trainable parameters
                 self.constants, self.lora_params = variables.pop('params'), variables.pop('lora_params')
             else:

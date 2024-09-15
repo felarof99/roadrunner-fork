@@ -241,7 +241,7 @@ class Checkpointer(object):
             for key, value in flattened_target.items():
                 if key not in flattend_train_state:
                     if 'lora_a' in key or 'lora_b' in key:
-                        print(f"Initializing new LoRA parameter: {key}")
+                        # print(f"Initializing new LoRA parameter: {key}")
                         shape = value.shape
                         dtype = value.dtype
                         if 'lora_a' in key:
