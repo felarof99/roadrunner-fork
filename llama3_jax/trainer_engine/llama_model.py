@@ -42,7 +42,7 @@ class LoRADense(Module):
             'params',
             'kernel',
             self.kernel_init,
-            jax.random.PRNGKey(0),  # You might want to pass a proper key
+            jax.random.PRNGKey(0),  # TODO(ntnsonti): pass a proper key
             (jnp.shape(inputs)[-1], self.features),
             self.param_dtype)
 
@@ -51,24 +51,37 @@ class LoRADense(Module):
                 'params',
                 'bias',
                 self.bias_init,
-                jax.random.PRNGKey(1),  # You might want to pass a proper key
+                jax.random.PRNGKey(1),  # TODO(ntnsonti): pass a proper key
                 (self.features, ),
                 self.param_dtype)
         else:
             bias = None
 
-        # LoRA weights (these remain as trainable parameters)
-        lora_a = self.param('lora_a', default_kernel_init,
-                            (jnp.shape(inputs)[-1], self.lora_rank),
-                            self.param_dtype)
-        lora_b = self.param('lora_b', zeros_init(),
-                            (self.lora_rank, self.features), self.param_dtype)
+        # lora_a = self.param('lora_a', default_kernel_init,
+        #                     (jnp.shape(inputs)[-1], self.lora_rank),
+        #                     self.param_dtype)
+        # lora_b = self.param('lora_b', zeros_init(),
+        #                     (self.lora_rank, self.features), self.param_dtype)
+        lora_a = self.variable(
+                'lora_params', 'lora_a',
+                self.bias_init,
+                jax.random.PRNGKey(1),  # You might want to pass a proper key
+                (jnp.shape(inputs)[-1], self.lora_rank),
+                self.param_dtype
+            )
+        lora_b = self.variable(
+                'lora_params', 'lora_b',
+                self.bias_init,
+                jax.random.PRNGKey(1),  # You might want to pass a proper key
+                (self.lora_rank, self.features),
+                self.param_dtype
+            )
 
-        inputs, kernel_value, lora_a, lora_b, bias_value = promote_dtype(
+        inputs, kernel_value, lora_a_value, lora_b_value, bias_value = promote_dtype(
             inputs,
             kernel.value,
-            lora_a,
-            lora_b,
+            lora_a.value,
+            lora_b.value,
             None if bias is None else bias.value,
             dtype=self.dtype)
 
@@ -82,13 +95,13 @@ class LoRADense(Module):
         # LoRA computation
         lora_output = lax.dot_general(
             inputs,
-            lora_a,
+            lora_a_value,
             (((inputs.ndim - 1, ), (0, )), ((), ())),
             precision=self.precision,
         )
         lora_output = lax.dot_general(
             lora_output,
-            lora_b,
+            lora_b_value,
             (((lora_output.ndim - 1, ), (0, )), ((), ())),
             precision=self.precision,
         )
