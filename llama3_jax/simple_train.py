@@ -80,7 +80,7 @@ trainer = trainer_lib.CausalLMTrainer(
     model_name=MODEL_NAME,
 )
 
-state = trainer.train(train_dataloader, val_dataloader, run_jitted=True)
+state = trainer.train(train_dataloader, val_dataloader, run_jitted=False)
 
 ########################################################
 # Exporting fine-tuned model
