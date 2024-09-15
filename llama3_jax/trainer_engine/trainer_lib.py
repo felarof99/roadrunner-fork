@@ -371,3 +371,23 @@ class CausalLMTrainer(FelafaxTrainer):
 
     def compute_loss(self, logits, labels, mask):
         return cross_entropy_loss_and_accuracy(logits, labels, mask)
+
+
+def pprint_training_pipeline(train_dataloader, training_config):
+    total_samples = len(train_dataloader.dataset)
+    steps_per_epoch = (total_samples + training_config.batch_size -
+                       1) // training_config.batch_size
+    total_steps = steps_per_epoch * training_config.num_epochs
+    if training_config.max_steps:
+        total_steps = min(total_steps, training_config.max_steps)
+
+    print("\nTraining Configuration Summary:")
+    print(f"Total samples: {total_samples}")
+    print(f"Batch size: {training_config.batch_size}")
+    print(f"Number of epochs: {training_config.num_epochs}")
+    print(f"Steps per epoch: {steps_per_epoch}")
+    print(f"Total training steps: {total_steps}")
+    if training_config.max_steps and total_steps == training_config.max_steps:
+        print(
+            f"*Note*: Total steps limited by max_steps setting ({training_config.max_steps})"
+        )
