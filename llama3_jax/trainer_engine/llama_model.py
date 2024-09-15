@@ -14,7 +14,91 @@ from transformers.modeling_flax_outputs import (FlaxBaseModelOutput,
 
 from . import jax_utils
 
+import jax
+import jax.numpy as jnp
+from jax import lax
+from flax.linen import Module, compact
+from flax.linen.initializers import zeros_init
+from flax.linen.dtypes import promote_dtype
+from typing import Any, Callable
 
+default_kernel_init = jax.nn.initializers.lecun_normal()
+
+
+class LoRADense(Module):
+    features: int
+    use_bias: bool = True
+    dtype: Any = None
+    param_dtype: Any = jnp.float32
+    precision: Any = None
+    kernel_init: Callable = default_kernel_init
+    bias_init: Callable = zeros_init()
+    lora_rank: int = 8
+    lora_alpha: float = 16
+
+    @compact
+    def __call__(self, inputs: Any) -> Any:
+        kernel = self.variable(
+            'constants',
+            'kernel',
+            self.kernel_init,
+            jax.random.PRNGKey(0),  # You might want to pass a proper key
+            (jnp.shape(inputs)[-1], self.features),
+            self.param_dtype)
+
+        if self.use_bias:
+            bias = self.variable(
+                'constants',
+                'bias',
+                self.bias_init,
+                jax.random.PRNGKey(1),  # You might want to pass a proper key
+                (self.features, ),
+                self.param_dtype)
+        else:
+            bias = None
+
+        # LoRA weights (these remain as trainable parameters)
+        lora_a = self.param('lora_a', default_kernel_init,
+                            (jnp.shape(inputs)[-1], self.lora_rank),
+                            self.param_dtype)
+        lora_b = self.param('lora_b', zeros_init(),
+                            (self.lora_rank, self.features), self.param_dtype)
+
+        inputs, kernel_value, lora_a, lora_b, bias_value = promote_dtype(
+            inputs,
+            kernel.value,
+            lora_a,
+            lora_b,
+            None if bias is None else bias.value,
+            dtype=self.dtype)
+
+        y = lax.dot_general(
+            inputs,
+            jax.lax.stop_gradient(kernel_value),
+            (((inputs.ndim - 1, ), (0, )), ((), ())),
+            precision=self.precision,
+        )
+
+        # LoRA computation
+        lora_output = lax.dot_general(
+            inputs,
+            lora_a,
+            (((inputs.ndim - 1, ), (0, )), ((), ())),
+            precision=self.precision,
+        )
+        lora_output = lax.dot_general(
+            lora_output,
+            lora_b,
+            (((lora_output.ndim - 1, ), (0, )), ((), ())),
+            precision=self.precision,
+        )
+        y += (self.lora_alpha / self.lora_rank) * lora_output
+
+        if bias_value is not None:
+            y += jnp.reshape(bias_value, (1, ) * (y.ndim - 1) + (-1, ))
+        return y
+
+    
 class RMSNorm(nn.Module):
     dim: int
     eps: float = 1e-6
@@ -93,7 +177,7 @@ class Attention(nn.Module):
 
         # Define the query, key, value, and output projection layers
         # Note: In grouped-query attention, we have fewer key-value heads than query heads
-        self.wq = nn.Dense(
+        self.wq = LoRADense(
             config.num_attention_heads * head_dim,
             dtype=self.dtype,
             param_dtype=self.param_dtype,
@@ -102,7 +186,7 @@ class Attention(nn.Module):
                 self.config.initializer_range / np.sqrt(config.hidden_size)),
             precision=self.precision,
         )
-        self.wk = nn.Dense(
+        self.wk = LoRADense(
             config.num_key_value_heads * head_dim,
             dtype=self.dtype,
             param_dtype=self.param_dtype,
@@ -111,7 +195,7 @@ class Attention(nn.Module):
                 self.config.initializer_range / np.sqrt(config.hidden_size)),
             precision=self.precision,
         )
-        self.wv = nn.Dense(
+        self.wv = LoRADense(
             config.num_key_value_heads * head_dim,
             dtype=self.dtype,
             param_dtype=self.param_dtype,
@@ -120,7 +204,7 @@ class Attention(nn.Module):
                 self.config.initializer_range / np.sqrt(config.hidden_size)),
             precision=self.precision,
         )
-        self.wo = nn.Dense(
+        self.wo = LoRADense(
             config.hidden_size,
             dtype=self.dtype,
             param_dtype=self.param_dtype,
@@ -266,7 +350,7 @@ class FeedForward(nn.Module):
 
     def setup(self) -> None:
         config = self.config
-        self.w1 = nn.Dense(
+        self.w1 = LoRADense(
             config.intermediate_size,
             dtype=self.dtype,
             param_dtype=self.param_dtype,
@@ -275,7 +359,7 @@ class FeedForward(nn.Module):
                 self.config.initializer_range / np.sqrt(config.hidden_size)),
             precision=self.precision,
         )
-        self.w2 = nn.Dense(
+        self.w2 = LoRADense(
             config.hidden_size,
             dtype=self.dtype,
             param_dtype=self.param_dtype,
@@ -285,7 +369,7 @@ class FeedForward(nn.Module):
                 np.sqrt(config.intermediate_size)),
             precision=self.precision,
         )
-        self.w3 = nn.Dense(
+        self.w3 = LoRADense(
             config.intermediate_size,
             dtype=self.dtype,
             param_dtype=self.param_dtype,
@@ -512,7 +596,7 @@ class CausalLlamaModule(nn.Module):
 
     def setup(self):
         self.transformer = LlamaModule(self.config, dtype=self.dtype)
-        self.lm_head = nn.Dense(
+        self.lm_head = LoRADense(
             self.config.vocab_size,
             dtype=self.dtype,
             param_dtype=self.param_dtype,

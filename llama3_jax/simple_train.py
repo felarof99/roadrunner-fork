@@ -43,7 +43,7 @@ model_path, model, model_configurator, tokenizer = (
 class TrainerConfig:
     learning_rate: float = 1e-4
     num_epochs: int = 1
-    max_steps: int | None = 100
+    max_steps: int | None = 5
     batch_size: int = 16
     seq_length: int = 64
     dataset_size_limit: int | None = None
@@ -81,7 +81,7 @@ trainer = trainer_lib.CausalLMTrainer(
 )
 
 state = trainer.train(train_dataloader, val_dataloader, run_jitted=True)
-
+break
 
 ########################################################
 # Exporting fine-tuned model
