@@ -215,7 +215,6 @@ class CausalLMTrainer(FelafaxTrainer):
     def jitted_train_step(self):
         return jax.jit(
             self.train_step,
-            static_argnums=(0,),  # self is static
             donate_argnums=(1,),  # donate the state
             in_shardings=(
                 self.state_shapes_partitioned,  # state
@@ -271,7 +270,6 @@ class CausalLMTrainer(FelafaxTrainer):
     def jitted_eval_step(self):
         return jax.jit(
             self.eval_step,
-            static_argnums=(0,),  # self is static
             in_shardings=(
                 self.state_shapes_partitioned,  # state
                 NamedSharding(self.mesh, PS("dp")),  # batch
