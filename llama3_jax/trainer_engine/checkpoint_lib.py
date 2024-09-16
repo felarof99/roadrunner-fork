@@ -207,6 +207,46 @@ class Checkpointer(object):
                 fout.write(packer.pack((key, to_bytes(value))))
 
     @staticmethod
+    def initialize_lora_params(lora_params_target, lora_params_shard_fns):
+        """Initialize LoRA parameters if they're not present in the checkpoint."""
+        lora_params = {}
+        flattened_target = flatten_dict(to_state_dict(lora_params_target),
+                                        keep_empty_nodes=True)
+
+        for key, value in flattened_target.items():
+            if 'lora_a' in key[-1]:
+                print(f"Initializing new LoRA parameter: {key}")
+                shape = value.shape
+                dtype = value.dtype
+                # Initialize lora_a with small random values
+                lora_params[key] = jax.random.normal(jax.random.PRNGKey(0),
+                                                     shape) * 0.02
+            elif 'lora_b' in key[-1]:
+                print(f"Initializing new LoRA parameter: {key}")
+                shape = value.shape
+                dtype = value.dtype
+                # Initialize lora_b with zeros
+                lora_params[key] = jnp.zeros(shape, dtype)
+            elif value == empty_node:
+                lora_params[key] = value
+            else:
+                print(
+                    f"Warning: Unexpected key in lora_params: {key}. Using target value."
+                )
+                lora_params[key] = value
+
+        # Apply sharding functions if provided
+        if lora_params_shard_fns is not None:
+            lora_params_shard_fns = flatten_dict(
+                to_state_dict(lora_params_shard_fns))
+            for key in lora_params:
+                if key in lora_params_shard_fns:
+                    lora_params[key] = lora_params_shard_fns[key](
+                        lora_params[key])
+
+        return unflatten_dict(lora_params)
+
+    @staticmethod
     def load_checkpoint(path, target=None, shard_fns=None, remove_dict_prefix=None):
         if shard_fns is not None:
             shard_fns = flatten_dict(
@@ -227,7 +267,7 @@ class Checkpointer(object):
                         continue
 
                 tensor = from_bytes(None, value)
-                
+
                 # Check if the key exists in shard_fns
                 if shard_fns is not None and key in shard_fns:
                     tensor = shard_fns[key](tensor)
@@ -240,17 +280,7 @@ class Checkpointer(object):
             flattened_target = flatten_dict(to_state_dict(target), keep_empty_nodes=True)
             for key, value in flattened_target.items():
                 if key not in flattend_train_state:
-                    if 'lora_a' in key or 'lora_b' in key:
-                        # print(f"Initializing new LoRA parameter: {key}")
-                        shape = value.shape
-                        dtype = value.dtype
-                        if 'lora_a' in key:
-                            # Initialize lora_a with small random values
-                            flattend_train_state[key] = jax.random.normal(jax.random.PRNGKey(0), shape) * 0.02
-                        else:
-                            # Initialize lora_b with zeros
-                            flattend_train_state[key] = jnp.zeros(shape, dtype)
-                    elif value == empty_node:
+                    if value == empty_node:
                         flattend_train_state[key] = value
                     else:
                         print(f"Warning: Key {key} not found in checkpoint. Using target value.")
@@ -330,37 +360,3 @@ class Checkpointer(object):
             raise ValueError(f'Invalid load_from type: {load_type}')
 
         return train_state, restored_params
-
-    @staticmethod
-    def initialize_lora_params(lora_params_target, lora_params_shard_fns):
-        """Initialize LoRA parameters if they're not present in the checkpoint."""
-        lora_params = {}
-        flattened_target = flatten_dict(to_state_dict(lora_params_target), keep_empty_nodes=True)
-        
-        for key, value in flattened_target.items():
-            if 'lora_a' in key[-1]:
-                print(f"Initializing new LoRA parameter: {key}")
-                shape = value.shape
-                dtype = value.dtype
-                # Initialize lora_a with small random values
-                lora_params[key] = jax.random.normal(jax.random.PRNGKey(0), shape) * 0.02
-            elif 'lora_b' in key[-1]:
-                print(f"Initializing new LoRA parameter: {key}")
-                shape = value.shape
-                dtype = value.dtype
-                # Initialize lora_b with zeros
-                lora_params[key] = jnp.zeros(shape, dtype)
-            elif value == empty_node:
-                lora_params[key] = value
-            else:
-                print(f"Warning: Unexpected key in lora_params: {key}. Using target value.")
-                lora_params[key] = value
-
-        # Apply sharding functions if provided
-        if lora_params_shard_fns is not None:
-            lora_params_shard_fns = flatten_dict(to_state_dict(lora_params_shard_fns))
-            for key in lora_params:
-                if key in lora_params_shard_fns:
-                    lora_params[key] = lora_params_shard_fns[key](lora_params[key])
-
-        return unflatten_dict(lora_params)
