@@ -212,36 +212,42 @@ class Checkpointer(object):
         lora_params = {}
         flattened_target = flatten_dict(to_state_dict(lora_params_target),
                                         keep_empty_nodes=True)
+        if lora_params_shard_fns is not None:
+            lora_params_shard_fns = flatten_dict(to_state_dict(lora_params_shard_fns))
+
+        rng_generator = jax_utils.NextRNG(jax.random.PRNGKey(99))
 
         for key, value in flattened_target.items():
             if 'lora_a' in key[-1]:
-                print(f"Initializing new LoRA parameter: {key}")
                 shape = value.shape
                 dtype = value.dtype
                 # Initialize lora_a with small random values
-                lora_params[key] = jax.random.normal(jax.random.PRNGKey(0),
-                                                     shape) * 0.02
+                if key in lora_params_shard_fns:
+                    lora_params[key] = lora_params_shard_fns[key](
+                        jax.random.normal(rng_generator(), shape) * 0.02
+                    )
+                else:
+                    lora_params[key] = jax.random.normal(rng_generator(), shape) * 0.02
             elif 'lora_b' in key[-1]:
-                print(f"Initializing new LoRA parameter: {key}")
                 shape = value.shape
                 dtype = value.dtype
                 # Initialize lora_b with zeros
-                lora_params[key] = jnp.zeros(shape, dtype)
+                if key in lora_params_shard_fns:
+                    lora_params[key] = lora_params_shard_fns[key](
+                        jnp.zeros(shape, dtype)
+                    )
+                else:
+                    lora_params[key] = jnp.zeros(shape, dtype)
             elif value == empty_node:
                 lora_params[key] = value
             else:
                 print(
                     f"Warning: Unexpected key in lora_params: {key}. Using target value."
                 )
-                lora_params[key] = value
-        # Apply sharding functions if provided
-        if lora_params_shard_fns is not None:
-            lora_params_shard_fns = flatten_dict(
-                to_state_dict(lora_params_shard_fns))
-            for key in lora_params:
                 if key in lora_params_shard_fns:
-                    lora_params[key] = lora_params_shard_fns[key](
-                        lora_params[key])
+                    lora_params[key] = lora_params_shard_fns[key](value)
+                else:
+                    lora_params[key] = value
 
         return unflatten_dict(lora_params)
 
