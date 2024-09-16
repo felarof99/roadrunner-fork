@@ -38,22 +38,20 @@ class LoRADense(Module):
 
     @compact
     def __call__(self, inputs: Any) -> Any:
-        kernel = self.variable(
-            'params',
+        kernel = self.param(
             'kernel',
             self.kernel_init,
-            jax.random.PRNGKey(0),  # TODO(ntnsonti): pass a proper key
             (jnp.shape(inputs)[-1], self.features),
-            self.param_dtype)
+            self.param_dtype
+        )
 
         if self.use_bias:
-            bias = self.variable(
-                'params',
+            bias = self.param(
                 'bias',
                 self.bias_init,
-                jax.random.PRNGKey(1),  # TODO(ntnsonti): pass a proper key
-                (self.features, ),
-                self.param_dtype)
+                (self.features,),
+                self.param_dtype
+            )
         else:
             bias = None
 
@@ -79,10 +77,10 @@ class LoRADense(Module):
 
         inputs, kernel_value, lora_a_value, lora_b_value, bias_value = promote_dtype(
             inputs,
-            kernel.value,
+            kernel,
             lora_a.value,
             lora_b.value,
-            None if bias is None else bias.value,
+            None if bias is None else bias,
             dtype=self.dtype)
 
         y = lax.dot_general(

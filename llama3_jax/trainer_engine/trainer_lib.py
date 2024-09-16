@@ -110,9 +110,9 @@ class CausalLMTrainer(FelafaxTrainer):
                             self.state_shapes, self.shard_fns))
 
                 # Separate constants and trainable parameters
-                self.constants, self.lora_params = variables.pop('params'), variables.pop('lora_params')
+                self.params, self.lora_params = variables.pop('params'), variables.pop('lora_params')
             else:
-                self.constants, self.lora_params = self.model_params.pop('params'), self.model_params.pop('lora_params')
+                self.params, self.lora_params = self.model_params.pop('params'), self.model_params.pop('lora_params')
 
             if self.lora_params is not None:
                 self.train_state = self.create_train_state_from_params(self.lora_params)
@@ -231,7 +231,7 @@ class CausalLMTrainer(FelafaxTrainer):
             loss_masks = batch["loss_masks"].reshape(
                 -1, batch["loss_masks"].shape[-1])
 
-            variables = {'lora_params': lora_params, 'params': self.constants}
+            variables = {'lora_params': lora_params, 'params': self.params}
             logits = state.apply_fn(
                 variables,
                 input_tokens,
@@ -263,7 +263,7 @@ class CausalLMTrainer(FelafaxTrainer):
         )
 
     def eval_step(self, state, batch):
-        variables = {'lora_params': state.params, 'params': self.constants}
+        variables = {'lora_params': state.params, 'params': self.params}
         logits = state.apply_fn(
             variables,
             batch["input_tokens"],
