@@ -43,7 +43,7 @@ model_path, model, model_configurator, tokenizer = (
 class TrainerConfig:
     learning_rate: float = 1e-4
     num_epochs: int = 1
-    max_steps: int | None = 50
+    max_steps: int | None = 20
     batch_size: int = 16
     seq_length: int = 64
     dataset_size_limit: int | None = None 
@@ -80,7 +80,7 @@ trainer = trainer_lib.CausalLMTrainer(
     model_name=MODEL_NAME,
 )
 
-state = trainer.train(train_dataloader, val_dataloader, run_jitted=False)
+state = trainer.train(train_dataloader, val_dataloader, run_jitted=True)
 
 save_checkpoint = input("Do you want to save the checkpoint? (y/N): ").strip().lower()
 if save_checkpoint != 'y':

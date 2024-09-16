@@ -215,6 +215,8 @@ class CausalLMTrainer(FelafaxTrainer):
     def jitted_train_step(self):
         return jax.jit(
             self.train_step,
+            static_argnums=(0,),  # self is static
+            donate_argnums=(1,),  # donate the state
             in_shardings=(
                 self.state_shapes_partitioned,  # state
                 NamedSharding(self.mesh, PS("dp")),  # batch
@@ -269,10 +271,10 @@ class CausalLMTrainer(FelafaxTrainer):
     def jitted_eval_step(self):
         return jax.jit(
             self.eval_step,
+            static_argnums=(0,),  # self is static
             in_shardings=(
                 self.state_shapes_partitioned,  # state
                 NamedSharding(self.mesh, PS("dp")),  # batch
-                NamedSharding(self.mesh, PS()),  # rng
             ),
             out_shardings=NamedSharding(self.mesh, PS())  # metrics
         )
@@ -287,18 +289,13 @@ class CausalLMTrainer(FelafaxTrainer):
 
         loss, accuracy = self.compute_loss(logits, batch["target_tokens"],
                                            batch["loss_masks"])
-        metrics = dict(
-            loss=loss,
-            accuracy=accuracy,
-        )
-        return metrics
+        return dict(loss=loss, accuracy=accuracy)
 
     def train(self,
               train_dataloader,
               eval_dataloader,
               run_jitted=True,
               run_aot=False):
-        state = self.train_state
 
         for epoch in range(self.training_config.num_epochs):
             print(f"Starting epoch {epoch} of training...")
@@ -315,14 +312,14 @@ class CausalLMTrainer(FelafaxTrainer):
                 sharded_rng = jax_utils.next_rng()
 
                 if run_aot and self.compiled_train_step is not None:
-                    state, sharded_rng, metrics = self.compiled_train_step(
-                        state, train_batch, sharded_rng)
+                    self.train_state, sharded_rng, metrics = self.compiled_train_step(
+                        self.train_state, train_batch, sharded_rng)
                 elif run_jitted:
-                    state, sharded_rng, metrics = self.jitted_train_step(
-                        state, train_batch, sharded_rng)
+                    self.train_state, sharded_rng, metrics = self.jitted_train_step(
+                        self.train_state, train_batch, sharded_rng)
                 else:
-                    state, sharded_rng, metrics = self.train_step(
-                        state, train_batch, sharded_rng)
+                    self.train_state, sharded_rng, metrics = self.train_step(
+                        self.train_state, train_batch, sharded_rng)
 
                 if step % self.training_config.print_every_n_steps == 0:
                     print(
@@ -338,9 +335,7 @@ class CausalLMTrainer(FelafaxTrainer):
                 if (self.training_config.max_steps
                         and step >= self.training_config.max_steps):
                     break
-
-        self.train_state = state
-        return state
+        return self.train_state
 
     def evaluate(self, state, eval_dataloader, run_jitted=True):
         total_loss = 0
