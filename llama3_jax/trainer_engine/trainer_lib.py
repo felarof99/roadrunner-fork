@@ -99,31 +99,30 @@ class CausalLMTrainer(FelafaxTrainer):
         jax_utils.init_rng(99)
         jax_utils.next_rng()
 
-        with self.mesh:
-            print("Loading causal language model...")
-            if self.model_params is None:
-                if self.model_name is None or self.model_name in [
-                        "llama-3.1-8B-Instruct-JAX", "llama-3.1-8B-JAX"
-                ]:
-                    _, variables = (
-                        self.checkpointer.load_trainstate_checkpoint(
-                            "flax_params::" + self.model_ckpt_path,
-                            self.state_shapes, self.shard_fns))
-                else:
-                    _, variables = (
-                        self.checkpointer.load_trainstate_checkpoint(
-                            "params::" + self.model_ckpt_path,
-                            self.state_shapes, self.shard_fns))
-
-                # Separate constants and trainable parameters
-                self.params, self.lora_params = variables.pop(
-                    'params'), variables.pop('lora_params')
+        print("Loading causal language model...")
+        if self.model_params is None:
+            if self.model_name is None or self.model_name in [
+                    "llama-3.1-8B-Instruct-JAX", "llama-3.1-8B-JAX"
+            ]:
+                _, variables = (
+                    self.checkpointer.load_trainstate_checkpoint(
+                        "flax_params::" + self.model_ckpt_path,
+                        self.state_shapes, self.shard_fns))
             else:
-                self.params, self.lora_params = self.model_params.pop(
-                    'params'), self.model_params.pop('lora_params')
+                _, variables = (
+                    self.checkpointer.load_trainstate_checkpoint(
+                        "params::" + self.model_ckpt_path,
+                        self.state_shapes, self.shard_fns))
 
-            self.train_state = self.create_train_state_from_params(
-                self.model.apply, self.params, self.lora_params)
+            # Separate constants and trainable parameters
+            self.params, self.lora_params = variables.pop(
+                'params'), variables.pop('lora_params')
+        else:
+            self.params, self.lora_params = self.model_params.pop(
+                'params'), self.model_params.pop('lora_params')
+
+        self.train_state = self.create_train_state_from_params(
+            self.model.apply, self.params, self.lora_params)
 
         # self.load_or_compile_train_step()
 
@@ -238,7 +237,7 @@ class CausalLMTrainer(FelafaxTrainer):
                 -1, batch["target_tokens"].shape[-1])
             loss_masks = batch["loss_masks"].reshape(
                 -1, batch["loss_masks"].shape[-1])
-
+            
             variables = {'params': state.params, 'lora_params': lora_params}
             logits = state.apply_fn(
                 variables,
