@@ -149,7 +149,7 @@ class CausalLMTrainer(FelafaxTrainer):
             self.train_step,
             in_shardings=(
                 self.state_shapes_partitioned,  # state
-                NamedSharding(self.mesh, PS("dp")),  # batch
+                NamedSharding(self.mesh, PS("dp", "fsdp")),  # batch
                 NamedSharding(self.mesh, PS()),  # rng
             ),
             out_shardings=(
@@ -217,7 +217,7 @@ class CausalLMTrainer(FelafaxTrainer):
             self.train_step,
             in_shardings=(
                 self.state_shapes_partitioned,  # state
-                NamedSharding(self.mesh, PS("dp")),  # batch
+                NamedSharding(self.mesh, PS("dp", "fsdp")),  # batch
                 NamedSharding(self.mesh, PS()),  # rng
             ),
             out_shardings=(
@@ -298,13 +298,8 @@ class CausalLMTrainer(FelafaxTrainer):
             print(f"Starting epoch {epoch} of training...")
 
             for step, train_batch in enumerate(train_dataloader):
-                # Reshape the batch for data parallelism
-                train_batch = jax.tree_map(
-                    lambda x: x.reshape(
-                        (self.mesh.shape['dp'], -1) + x.shape[1:]),
-                    train_batch)
                 train_batch = jax.device_put(
-                    train_batch, NamedSharding(self.mesh, PS("dp", None)))
+                    train_batch, NamedSharding(self.mesh, PS("dp", "fsdp")))
 
                 sharded_rng = jax_utils.next_rng()
 
