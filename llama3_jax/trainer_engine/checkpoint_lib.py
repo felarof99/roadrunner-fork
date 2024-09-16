@@ -234,7 +234,7 @@ class Checkpointer(object):
                     f"Warning: Unexpected key in lora_params: {key}. Using target value."
                 )
                 lora_params[key] = value
-
+        pdb.set_trace()
         # Apply sharding functions if provided
         if lora_params_shard_fns is not None:
             lora_params_shard_fns = flatten_dict(
@@ -317,15 +317,15 @@ class Checkpointer(object):
                                    trainstate_shard_fns=None,
                                    disallow_trainstate=False):
         if trainstate_target is not None:
-            params_target = trainstate_target.params.get('params')
-            lora_params_target = trainstate_target.params.get('lora_params')
+            params_target = trainstate_target.params
+            lora_params_target = trainstate_target.lora_params
         else:
             params_target = None
             lora_params_target = None
 
         if trainstate_shard_fns is not None:
-            params_shard_fns = trainstate_shard_fns.params.get('params')
-            lora_params_shard_fns = trainstate_shard_fns.params.get('lora_params')
+            params_shard_fns = trainstate_shard_fns.params
+            lora_params_shard_fns = trainstate_shard_fns.lora_params
         else:
             params_shard_fns = None
             lora_params_shard_fns = None
@@ -336,6 +336,7 @@ class Checkpointer(object):
         train_state = None
         restored_params = {}
 
+        pdb.set_trace()
         if load_type in ['params', 'flax_params']:
             # Load or initialize params
             if load_type == 'params':

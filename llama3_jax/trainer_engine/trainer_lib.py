@@ -22,6 +22,10 @@ from . import checkpoint_lib, jax_utils, utils
 from .jax_utils import cross_entropy_loss_and_accuracy
 
 
+class FelafaxTrainState(train_state.TrainState):
+    params: Any
+    lora_params: Any
+
 class FelafaxTrainer(ABC):
 
     @abstractmethod
@@ -84,6 +88,7 @@ class CausalLMTrainer(FelafaxTrainer):
         )
 
         self.state_shapes = self.get_state_shapes()
+        pdb.set_trace()
         self.state_shapes_partitioned = jax_utils.match_partition_rules(
             self.model_configurator.get_partition_rules(), self.state_shapes)
 
@@ -110,14 +115,14 @@ class CausalLMTrainer(FelafaxTrainer):
                             self.state_shapes, self.shard_fns))
 
                 # Separate constants and trainable parameters
-                self.params, self.lora_params = variables.pop('params'), variables.pop('lora_params')
+                self.params, self.lora_params = variables.pop(
+                    'params'), variables.pop('lora_params')
             else:
-                self.params, self.lora_params = self.model_params.pop('params'), self.model_params.pop('lora_params')
+                self.params, self.lora_params = self.model_params.pop(
+                    'params'), self.model_params.pop('lora_params')
 
-            if self.lora_params is not None:
-                self.train_state = self.create_train_state_from_params(self.lora_params)
-            else:
-                raise ValueError("Failed to load LoRA parameters")
+            self.train_state = self.create_train_state_from_params(
+                self.model.apply, self.params, self.lora_params)
 
         # self.load_or_compile_train_step()
 
@@ -136,7 +141,8 @@ class CausalLMTrainer(FelafaxTrainer):
 
     def compile_train_step(self):
         print("Compiling train step...")
-        dummy_state = self.create_train_state_from_params(self.lora_params)
+        dummy_state = self.create_train_state_from_params(
+            self.model.apply, self.params, self.lora_params)
         dummy_batch = self.get_dummy_batch()
 
         jitted_train_step = jax.jit(
@@ -193,16 +199,17 @@ class CausalLMTrainer(FelafaxTrainer):
             attention_mask=jnp.ones((4, seq_length), dtype=jnp.int32),
             rngs=rng_generator(model_config.get_rng_keys()),
         )
-        return train_state.TrainState.create(params=params,
-                                             tx=optimizer,
-                                             apply_fn=model.apply)
+        return FelafaxTrainState.create(apply_fn=model.apply,
+                                       params=params['params'],
+                                       lora_params=params['lora_params'],
+                                       tx=optimizer)
 
-    def create_train_state_from_params(self, lora_params):
-        return train_state.TrainState.create(
-            params=lora_params,
-            apply_fn=self.model.apply,
-            tx=self.optimizer
-        )
+    def create_train_state_from_params(self, model_apply_fn, params,
+                                       lora_params):
+        return FelafaxTrainState.create(apply_fn=model_apply_fn,
+                                       params=params,
+                                       lora_params=lora_params,
+                                       tx=self.optimizer)
 
     @property
     def jitted_train_step(self):
@@ -231,7 +238,7 @@ class CausalLMTrainer(FelafaxTrainer):
             loss_masks = batch["loss_masks"].reshape(
                 -1, batch["loss_masks"].shape[-1])
 
-            variables = {'lora_params': lora_params, 'params': self.params}
+            variables = {'params': state.params, 'lora_params': lora_params}
             logits = state.apply_fn(
                 variables,
                 input_tokens,
@@ -241,14 +248,17 @@ class CausalLMTrainer(FelafaxTrainer):
             return self.compute_loss(logits, target_tokens, loss_masks)
 
         grad_fn = jax.value_and_grad(loss_and_accuracy, has_aux=True)
-        (loss, accuracy), grads = grad_fn(state.params)
+        (loss, accuracy), grads = grad_fn(state.lora_params)
 
-        state = state.apply_gradients(grads=grads)
+        new_lora_params = state.tx.apply_gradients(grads=grads,
+                                                   params=state.lora_params)
+        new_state = state.replace(step=state.step + 1,
+                                  lora_params=new_lora_params)
         metrics = dict(
             loss=loss,
             accuracy=accuracy,
         )
-        return state, rng_generator(), metrics
+        return new_state, rng_generator(), metrics
 
     @property
     def jitted_eval_step(self):
@@ -263,7 +273,7 @@ class CausalLMTrainer(FelafaxTrainer):
         )
 
     def eval_step(self, state, batch):
-        variables = {'lora_params': state.params, 'params': self.params}
+        variables = {'params': state.params, 'lora_params': state.lora_params}
         logits = state.apply_fn(
             variables,
             batch["input_tokens"],
@@ -363,16 +373,14 @@ class CausalLMTrainer(FelafaxTrainer):
 
         return {'loss': avg_loss, 'accuracy': avg_accuracy}
 
+    def load_checkpoint(self, path):
+        pass
+    
     def save_checkpoint(self, state, path):
         print(f"Saving checkpoint to {path}...")
         self.checkpointer.save_checkpoint_simple(train_state=state,
                                                  filename=path)
         print(f"Checkpoint saved to {path}.")
-
-    def load_checkpoint(self, path):
-        _, params = self.checkpointer.load_trainstate_checkpoint(
-            path, self.state_shapes, self.shard_fns)
-        return self.create_train_state_from_params(params)
 
     def compute_loss(self, logits, labels, mask):
         return cross_entropy_loss_and_accuracy(logits, labels, mask)
