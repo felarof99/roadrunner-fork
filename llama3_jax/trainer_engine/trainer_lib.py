@@ -12,6 +12,7 @@ import chex
 import flax
 import jax
 import jax.numpy as jnp
+import optax
 import torch
 from flax.training import train_state
 from jax.sharding import Mesh, NamedSharding
@@ -25,6 +26,7 @@ from .jax_utils import cross_entropy_loss_and_accuracy
 class FelafaxTrainState(train_state.TrainState):
     params: Any
     lora_params: Any
+
 
 class FelafaxTrainer(ABC):
 
@@ -88,7 +90,6 @@ class CausalLMTrainer(FelafaxTrainer):
         )
 
         self.state_shapes = self.get_state_shapes()
-        pdb.set_trace()
         self.state_shapes_partitioned = jax_utils.match_partition_rules(
             self.model_configurator.get_partition_rules(), self.state_shapes)
 
@@ -200,16 +201,16 @@ class CausalLMTrainer(FelafaxTrainer):
             rngs=rng_generator(model_config.get_rng_keys()),
         )
         return FelafaxTrainState.create(apply_fn=model.apply,
-                                       params=params['params'],
-                                       lora_params=params['lora_params'],
-                                       tx=optimizer)
+                                        params=params['params'],
+                                        lora_params=params['lora_params'],
+                                        tx=optimizer)
 
     def create_train_state_from_params(self, model_apply_fn, params,
                                        lora_params):
         return FelafaxTrainState.create(apply_fn=model_apply_fn,
-                                       params=params,
-                                       lora_params=lora_params,
-                                       tx=self.optimizer)
+                                        params=params,
+                                        lora_params=lora_params,
+                                        tx=self.optimizer)
 
     @property
     def jitted_train_step(self):
@@ -250,10 +251,15 @@ class CausalLMTrainer(FelafaxTrainer):
         grad_fn = jax.value_and_grad(loss_and_accuracy, has_aux=True)
         (loss, accuracy), grads = grad_fn(state.lora_params)
 
-        new_lora_params = state.tx.apply_gradients(grads=grads,
-                                                   params=state.lora_params)
+        # Update using optax
+        updates, new_opt_state = state.tx.update(grads, state.opt_state,
+                                                 state.lora_params)
+        new_lora_params = optax.apply_updates(state.lora_params, updates)
+
         new_state = state.replace(step=state.step + 1,
-                                  lora_params=new_lora_params)
+                                  lora_params=new_lora_params,
+                                  opt_state=new_opt_state)
+
         metrics = dict(
             loss=loss,
             accuracy=accuracy,
@@ -375,7 +381,7 @@ class CausalLMTrainer(FelafaxTrainer):
 
     def load_checkpoint(self, path):
         pass
-    
+
     def save_checkpoint(self, state, path):
         print(f"Saving checkpoint to {path}...")
         self.checkpointer.save_checkpoint_simple(train_state=state,
