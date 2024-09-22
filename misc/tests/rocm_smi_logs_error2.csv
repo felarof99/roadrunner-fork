@@ -1,0 +1,46 @@
+timestamp,step,gpu_utilization,memory_used,memory_total
+1726951986.4294128,0,device,Temperature (Sensor junction) (C),Temperature (Sensor memory) (C),fclk clock speed:,fclk clock level:,mclk clock speed:,mclk clock level:,sclk clock speed:,sclk clock level:,socclk clock speed:,socclk clock level:,Performance Level,Current Socket Graphics Package Power (W),GPU use (%),GFX Activity,GPU memory use (%),Memory Activity,Avg. Memory Bandwidth
+1726951986.4294128,0,card0,52.0,37.0,(1300Mhz),0,(900Mhz),0,(1036Mhz),1,(57Mhz),S,auto,205.0,6,1702724960,0,142669495,0
+1726951986.4294128,0,card1,43.0,33.0,(1550Mhz),1,(1100Mhz),1,(689Mhz),1,(40Mhz),S,auto,170.0,2,1161627938,0,138115044,0
+1726951986.4294128,0,card2,48.0,32.0,(1550Mhz),1,(1100Mhz),1,(682Mhz),1,(40Mhz),S,auto,171.0,2,1056354199,0,138017127,0
+1726951986.4294128,0,card3,37.0,31.0,(1550Mhz),1,(1100Mhz),1,(633Mhz),1,(40Mhz),S,auto,168.0,2,964443627,0,138022852,0
+1726951986.4294128,0,card4,40.0,33.0,(1550Mhz),1,(1100Mhz),1,(618Mhz),1,(40Mhz),S,auto,168.0,2,866202915,0,138088346,0
+1726951986.4294128,0,card5,36.0,30.0,(1300Mhz),0,(900Mhz),0,(601Mhz),1,(34Mhz),S,auto,146.0,2,806141917,0,138024900,0
+1726951986.4294128,0,card6,47.0,35.0,(1550Mhz),1,(1100Mhz),1,(604Mhz),1,(39Mhz),S,auto,175.0,2,803353964,0,138112397,0
+1726951986.4294128,0,card7,41.0,34.0,(1300Mhz),0,(900Mhz),0,(568Mhz),1,(34Mhz),S,auto,149.0,2,739346315,0,138442361,0
+1726951987.6324518,0,device,Temperature (Sensor junction) (C),Temperature (Sensor memory) (C),fclk clock speed:,fclk clock level:,mclk clock speed:,mclk clock level:,sclk clock speed:,sclk clock level:,socclk clock speed:,socclk clock level:,Performance Level,Current Socket Graphics Package Power (W),GPU use (%),GFX Activity,GPU memory use (%),Memory Activity,Avg. Memory Bandwidth
+1726951987.6324518,0,card0,52.0,37.0,(1800Mhz),2,(1300Mhz),2,(621Mhz),1,(47Mhz),S,auto,221.0,34,1702792023,0,142669502,0
+1726951987.6324518,0,card1,43.0,33.0,(1800Mhz),2,(1300Mhz),2,(638Mhz),1,(45Mhz),S,auto,189.0,34,1161689417,0,138115051,0
+1726951987.6324518,0,card2,48.0,31.0,(1800Mhz),2,(1300Mhz),2,(665Mhz),1,(44Mhz),S,auto,189.0,31,1056418441,0,138017135,0
+1726951987.6324518,0,card3,37.0,31.0,(1800Mhz),2,(1300Mhz),2,(679Mhz),1,(45Mhz),S,auto,187.0,33,964511271,0,138022860,0
+1726951987.6324518,0,card4,41.0,33.0,(1800Mhz),2,(1300Mhz),2,(752Mhz),1,(46Mhz),S,auto,188.0,34,866263533,0,138088353,0
+1726951987.6324518,0,card5,36.0,30.0,(1800Mhz),2,(1300Mhz),2,(820Mhz),1,(46Mhz),S,auto,189.0,35,806200572,0,138024908,0
+1726951987.6324518,0,card6,47.0,35.0,(1800Mhz),2,(1300Mhz),2,(817Mhz),1,(45Mhz),S,auto,192.0,36,803409799,0,138112405,0
+1726951987.6324518,0,card7,42.0,34.0,(1800Mhz),2,(1300Mhz),2,(833Mhz),1,(46Mhz),S,auto,190.0,37,739402463,0,138442369,0
+1726951988.8328354,0,device,Temperature (Sensor junction) (C),Temperature (Sensor memory) (C),fclk clock speed:,fclk clock level:,mclk clock speed:,mclk clock level:,sclk clock speed:,sclk clock level:,socclk clock speed:,socclk clock level:,Performance Level,Current Socket Graphics Package Power (W),GPU use (%),GFX Activity,GPU memory use (%),Memory Activity,Avg. Memory Bandwidth
+1726951988.8328354,0,card0,53.0,37.0,(1800Mhz),2,(1300Mhz),2,(638Mhz),1,(47Mhz),S,auto,219.0,32,1702858930,0,142669511,0
+1726951988.8328354,0,card1,43.0,33.0,(1800Mhz),2,(1300Mhz),2,(688Mhz),1,(46Mhz),S,auto,187.0,31,1161752936,0,138115060,0
+1726951988.8328354,0,card2,48.0,31.0,(1800Mhz),2,(1300Mhz),2,(747Mhz),1,(46Mhz),S,auto,189.0,30,1056483734,0,138017144,0
+1726951988.8328354,0,card3,37.0,31.0,(1800Mhz),2,(1300Mhz),2,(803Mhz),1,(45Mhz),S,auto,186.0,32,964578726,0,138022869,0
+1726951988.8328354,0,card4,41.0,33.0,(1800Mhz),2,(1300Mhz),2,(791Mhz),1,(46Mhz),S,auto,186.0,32,866332528,0,138088362,0
+1726951988.8328354,0,card5,36.0,30.0,(1800Mhz),2,(1300Mhz),2,(782Mhz),1,(45Mhz),S,auto,187.0,33,806270543,0,138024917,0
+1726951988.8328354,0,card6,48.0,35.0,(1800Mhz),2,(1300Mhz),2,(774Mhz),1,(46Mhz),S,auto,192.0,33,803479699,0,138112414,0
+1726951988.8328354,0,card7,42.0,35.0,(1800Mhz),2,(1300Mhz),2,(813Mhz),1,(46Mhz),S,auto,188.0,36,739472436,0,138442378,0
+1726951990.0346222,0,device,Temperature (Sensor junction) (C),Temperature (Sensor memory) (C),fclk clock speed:,fclk clock level:,mclk clock speed:,mclk clock level:,sclk clock speed:,sclk clock level:,socclk clock speed:,socclk clock level:,Performance Level,Current Socket Graphics Package Power (W),GPU use (%),GFX Activity,GPU memory use (%),Memory Activity,Avg. Memory Bandwidth
+1726951990.0346222,0,card0,48.0,37.0,(1800Mhz),2,(1300Mhz),2,(758Mhz),1,(48Mhz),S,auto,181.0,34,1702925253,0,142669520,0
+1726951990.0346222,0,card1,43.0,33.0,(1800Mhz),2,(1300Mhz),2,(786Mhz),1,(46Mhz),S,auto,184.0,34,1161819646,0,138115070,0
+1726951990.0346222,0,card2,44.0,31.0,(1800Mhz),2,(1300Mhz),2,(805Mhz),1,(46Mhz),S,auto,189.0,36,1056550036,0,138017153,0
+1726951990.0346222,0,card3,37.0,30.0,(1800Mhz),2,(1300Mhz),2,(778Mhz),1,(46Mhz),S,auto,183.0,35,964648110,0,138022878,0
+1726951990.0346222,0,card4,40.0,33.0,(1800Mhz),2,(1300Mhz),2,(770Mhz),1,(47Mhz),S,auto,184.0,36,866403455,0,138088372,0
+1726951990.0346222,0,card5,36.0,30.0,(1800Mhz),2,(1300Mhz),2,(760Mhz),1,(47Mhz),S,auto,184.0,35,806340990,0,138024926,0
+1726951990.0346222,0,card6,47.0,35.0,(1800Mhz),2,(1300Mhz),2,(777Mhz),1,(50Mhz),S,auto,187.0,35,803550445,0,138112423,0
+1726951990.0346222,0,card7,42.0,35.0,(1800Mhz),2,(1300Mhz),2,(850Mhz),1,(49Mhz),S,auto,186.0,37,739543235,0,138442387,0
+1726951991.2360125,0,device,Temperature (Sensor junction) (C),Temperature (Sensor memory) (C),fclk clock speed:,fclk clock level:,mclk clock speed:,mclk clock level:,sclk clock speed:,sclk clock level:,socclk clock speed:,socclk clock level:,Performance Level,Current Socket Graphics Package Power (W),GPU use (%),GFX Activity,GPU memory use (%),Memory Activity,Avg. Memory Bandwidth
+1726951991.2360125,0,card0,45.0,37.0,(1800Mhz),2,(1300Mhz),2,(795Mhz),1,(48Mhz),S,auto,186.0,39,1702992836,0,142669529,0
+1726951991.2360125,0,card1,43.0,33.0,(1800Mhz),2,(1300Mhz),2,(810Mhz),1,(46Mhz),S,auto,186.0,37,1161885613,0,138115079,0
+1726951991.2360125,0,card2,41.0,31.0,(1800Mhz),2,(1300Mhz),2,(756Mhz),1,(47Mhz),S,auto,192.0,38,1056615729,0,138017163,0
+1726951991.2360125,0,card3,37.0,31.0,(1800Mhz),2,(1300Mhz),2,(792Mhz),1,(46Mhz),S,auto,188.0,40,964715876,0,138022889,0
+1726951991.2360125,0,card4,39.0,33.0,(1800Mhz),2,(1300Mhz),2,(788Mhz),1,(53Mhz),S,auto,189.0,40,866472875,0,138088383,0
+1726951991.2360125,0,card5,36.0,30.0,(1800Mhz),2,(1300Mhz),2,(837Mhz),1,(51Mhz),S,auto,189.0,41,806410285,0,138024937,0
+1726951991.2360125,0,card6,46.0,35.0,(1800Mhz),2,(1300Mhz),2,(885Mhz),1,(52Mhz),S,auto,192.0,40,803619561,0,138112435,0
+1726951991.2360125,0,card7,42.0,35.0,(1800Mhz),2,(1300Mhz),2,(919Mhz),1,(51Mhz),S,auto,190.0,39,739612465,0,138442398,0
