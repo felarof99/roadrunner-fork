@@ -175,7 +175,7 @@ class CausalLMTrainer(FelafaxTrainer):
             ))
         print("Compilation done!")
         return jitted_train_step
-    
+
     def train_step(self, state, batch, rng):
         rng_generator = jax_utils.NextRNG(rng)
 
@@ -421,19 +421,6 @@ class CausalLMTrainer(FelafaxTrainer):
                 try:
                     output = subprocess.check_output([
                         "rocm-smi",
-                        "--alldevices",
-                        "--showuse",  # GPU Utilization
-                        "--showmemuse",  # Memory Usage
-                        "--showtemp",  # Temperature
-                        "--showpower",  # Power Consumption
-                        "--showclocks",  # Clock Frequencies
-                        "--showfan",  # Fan Speed
-                        "--showperflevel",  # Performance Level
-                        "--showvoltage",  # Voltage
-                        "--showbw",  # PCIe Bandwidth
-                        "--showpids",
-                        "verbose",  # Process Information
-                        "--csv"  # CSV Format
                     ]).decode()
                     with open(log_file, "a") as f:
                         # Append the timestamp and step to each line of the output
