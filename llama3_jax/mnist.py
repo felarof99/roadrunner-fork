@@ -1,4 +1,6 @@
 import jax
+jax.distributed.initialize()
+
 import jax.numpy as jnp
 import flax.linen as nn
 from flax.training import train_state
@@ -8,29 +10,21 @@ from absl import app, flags
 from jax.sharding import Mesh, PartitionSpec as PS
 from jax.sharding import NamedSharding
 from jax.experimental import mesh_utils
+import os
+import sys
+sys.path.append(os.path.abspath(os.getcwd()))
+sys.path.append(os.path.abspath(os.path.dirname(os.getcwd())))
 
-# Initialize JAX's distributed computing
-jax.distributed.initialize()
+import llama3_jax
+from llama3_jax.trainer_engine import jax_utils, trainer_lib
 
 FLAGS = flags.FLAGS
 flags.DEFINE_integer("num_steps", 5000, "Number of training steps")
 flags.DEFINE_integer("batch_size", 64, "Batch size for training")
 flags.DEFINE_float("learning_rate", 0.001, "Learning rate for the optimizer")
 
-# Define the mesh for multi-TPU training
-devices = jax.devices()
-device_count = len(devices)
-
-if device_count == 1:
-    device_mesh = mesh_utils.create_device_mesh((1, 1))
-elif device_count == 4:
-    device_mesh = mesh_utils.create_device_mesh((2, 2))
-elif device_count == 8:
-    device_mesh = mesh_utils.create_device_mesh((2, 4))
-else:
-    device_mesh = mesh_utils.create_device_mesh((1, device_count))
-
-mesh = Mesh(devices=device_mesh, axis_names=('dp', 'mp'))
+# Use the MESH from jax_utils
+MESH = jax_utils.MESH
 
 class Model(nn.Module):
     @nn.compact
@@ -46,8 +40,8 @@ def create_train_state(rng, learning_rate):
     model = Model()
     params = model.init(rng, jnp.ones([1, 28*28]))['params']
     tx = optax.adam(learning_rate)
-    return train_state.TrainState.create(
-        apply_fn=model.apply, params=params, tx=tx)
+    return trainer_lib.FelafaxTrainState.create(
+        apply_fn=model.apply, params=params, lora_params={}, tx=tx)
 
 def get_param_sharding_rules():
     return {
@@ -59,19 +53,15 @@ def get_param_sharding_rules():
 def shard_params(params):
     rules = get_param_sharding_rules()
     return jax.tree_map(
-        lambda p, rule: jax.device_put(p, NamedSharding(mesh, rule)),
+        lambda p, rule: jax.device_put(p, NamedSharding(MESH, rule)),
         params, rules
     )
 
 @jax.jit
 def train_step(state, batch):
-    def cross_entropy_loss(logits, labels):
-        return optax.softmax_cross_entropy(logits=logits, labels=labels).mean()
-
-   
     def loss_fn(params):
         logits = state.apply_fn({'params': params}, batch[0])
-        loss = cross_entropy_loss(logits, batch[1])
+        loss = optax.softmax_cross_entropy(logits=logits, labels=batch[1]).mean()
         return loss, logits
 
     grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
@@ -113,10 +103,9 @@ def main(_):
     # Train
     for step in range(FLAGS.num_steps):
         batch = get_batch(train_ds)
-        sharded_batch = jax.device_put(batch,
-                                       NamedSharding(mesh, PS('dp', None)))
+        sharded_batch = jax.device_put(batch, NamedSharding(MESH, PS('dp', None)))
         state, loss = train_step(state, sharded_batch)
-        
+
         if step % 100 == 0:
             print(f"Step: {step}, Loss: {loss:.4f}")
 
