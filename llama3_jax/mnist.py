@@ -22,7 +22,6 @@ class Model(nn.Module):
         self.final_layer = nn.Dense(10)
 
     def __call__(self, x):
-        x = x.reshape((x.shape[0], -1))  # Flatten the input
         x = nn.relu(self.dense1(x))
         x = nn.relu(self.dense2(x))
         x = nn.relu(self.dense3(x))
@@ -32,21 +31,21 @@ class Model(nn.Module):
 def create_dataset(x, y, batch_size):
     dataset = (
         tf.data.Dataset
-        .from_tensor_slices((x, y))
+        .from_tensor_slices((x.reshape(-1, 28*28), y))  # Flatten the images
         .shuffle(buffer_size=5000)
         .batch(batch_size)
-        .repeat()  # This makes the dataset repeat indefinitely
+        .repeat()
         .prefetch(tf.data.AUTOTUNE)
         .as_numpy_iterator())
     return dataset
 
 def get_batch(dataset):
     images, labels = next(dataset)
-    return jnp.expand_dims(jnp.array(images), axis=-1), jnp.array(labels, dtype=jnp.int32)
+    return jnp.array(images), jnp.array(labels, dtype=jnp.int32)
 
 def create_train_state(rng, learning_rate):
     model = Model()
-    params = model.init(rng, jnp.ones([1, 28, 28, 1]))['params']
+    params = model.init(rng, jnp.ones([1, 28*28]))['params']  # Use flattened input
     tx = optax.adam(learning_rate)
     return train_state.TrainState.create(
         apply_fn=model.apply, params=params, tx=tx)
@@ -73,7 +72,7 @@ def train(state, train_ds, num_steps):
 def main(_):
     # Load and preprocess the MNIST dataset
     (x_train, y_train), _ = tf.keras.datasets.mnist.load_data()
-    x_train = x_train / 255.0
+    x_train = x_train.reshape(-1, 28*28) / 255.0  # Flatten and normalize
     y_train = tf.keras.utils.to_categorical(y_train, 10)
 
     # Create dataset
