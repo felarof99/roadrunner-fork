@@ -5,6 +5,8 @@ from flax.training import train_state
 import optax
 import tensorflow as tf
 from absl import app, flags
+from jax.sharding import Mesh, PartitionSpec as PS
+from jax.sharding import NamedSharding
 
 # Initialize JAX's distributed computing
 jax.distributed.initialize()
@@ -13,6 +15,10 @@ FLAGS = flags.FLAGS
 flags.DEFINE_integer("num_steps", 5000, "Number of training steps")
 flags.DEFINE_integer("batch_size", 64, "Batch size for training")
 flags.DEFINE_float("learning_rate", 0.001, "Learning rate for the optimizer")
+
+# Define the mesh for multi-TPU training
+devices = jax.devices()
+mesh = Mesh(devices, ('dp',))
 
 class Model(nn.Module):
     def setup(self):
@@ -45,16 +51,19 @@ def get_batch(dataset):
 
 def create_train_state(rng, learning_rate):
     model = Model()
-    params = model.init(rng, jnp.ones([1, 28*28]))['params']  
+    params = model.init(rng, jnp.ones([1, 28*28]))['params']
     tx = optax.adam(learning_rate)
     return train_state.TrainState.create(
         apply_fn=model.apply, params=params, tx=tx)
 
 @jax.jit
 def train_step(state, batch):
+    def cross_entropy_loss(logits, labels):
+        return optax.softmax_cross_entropy(logits=logits, labels=labels).mean()
+
     def loss_fn(params):
         logits = state.apply_fn({'params': params}, batch[0])
-        loss = optax.softmax_cross_entropy(logits=logits, labels=batch[1]).mean()
+        loss = cross_entropy_loss(logits, batch[1])
         return loss, logits
 
     grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
@@ -62,12 +71,6 @@ def train_step(state, batch):
     state = state.apply_gradients(grads=grads)
     return state, loss
 
-def train(state, train_ds, num_steps):
-    for step in range(num_steps):
-        train_batch = get_batch(train_ds)
-        state, loss = train_step(state, train_batch)
-        if step % 500 == 0:
-            print(f"Step: {step}, Loss: {loss:.4f}")
 
 def main(_):
     # Load and preprocess the MNIST dataset
@@ -82,8 +85,17 @@ def main(_):
     rng = jax.random.PRNGKey(0)
     state = create_train_state(rng, FLAGS.learning_rate)
 
+    # Shard the initial state
+    state = jax.device_put(state, NamedSharding(mesh, PS()))
+
     # Train
-    train(state, train_ds, FLAGS.num_steps)
+    for step in range(FLAGS.num_steps):
+        batch = get_batch(train_ds)
+        sharded_batch = jax.device_put(batch, NamedSharding(mesh, PS('dp')))
+        state, loss = train_step(state, sharded_batch)
+
+        if step % 100 == 0:
+            print(f"Step: {step}, Loss: {loss:.4f}")
 
 if __name__ == "__main__":
     app.run(main)
