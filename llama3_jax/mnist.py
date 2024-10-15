@@ -45,7 +45,7 @@ def get_batch(dataset):
 
 def create_train_state(rng, learning_rate):
     model = Model()
-    params = model.init(rng, jnp.ones([1, 28*28]))['params']  # Use flattened input
+    params = model.init(rng, jnp.ones([1, 28*28]))['params']  
     tx = optax.adam(learning_rate)
     return train_state.TrainState.create(
         apply_fn=model.apply, params=params, tx=tx)
