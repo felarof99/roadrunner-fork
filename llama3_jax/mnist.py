@@ -16,18 +16,16 @@ flags.DEFINE_float("learning_rate", 0.001, "Learning rate for the optimizer")
 
 class Model(nn.Module):
     def setup(self):
-        self.conv1 = nn.Conv(16, kernel_size=(3, 3), strides=(2, 2))
-        self.conv2 = nn.Conv(8, kernel_size=(3, 3), strides=(2, 2))
-        self.conv3 = nn.Conv(4, kernel_size=(3, 3), strides=(2, 2))
-        self.conv4 = nn.Conv(1, kernel_size=(3, 3), strides=(2, 2))
+        self.dense1 = nn.Dense(1024)
+        self.dense2 = nn.Dense(1024)
+        self.dense3 = nn.Dense(1024)
         self.final_layer = nn.Dense(10)
 
     def __call__(self, x):
-        x = nn.relu(self.conv1(x))
-        x = nn.relu(self.conv2(x))
-        x = nn.relu(self.conv3(x))
-        x = nn.relu(self.conv4(x))
-        x = x.reshape((x.shape[0], -1))
+        x = x.reshape((x.shape[0], -1))  # Flatten the input
+        x = nn.relu(self.dense1(x))
+        x = nn.relu(self.dense2(x))
+        x = nn.relu(self.dense3(x))
         x = self.final_layer(x)
         return x
 
