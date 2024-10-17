@@ -8,6 +8,7 @@ import jax.numpy as jnp
 from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
 from jax.experimental import mesh_utils
 from jax.experimental.shard_map import shard_map
+from jax.experimental import multihost_utils
 
 devices = mesh_utils.create_device_mesh((4, 2))
 mesh = Mesh(devices, axis_names=('x', 'y'))
@@ -26,15 +27,22 @@ if jax.process_index() == 0:
     b = jnp.arange(16 * 8).reshape(16, 8)
     c = matmul_basic(a, b)
 
-    # Gather c from all devices to the host
-    c_gathered = jax.device_get(c)
-    print("Gathered result:")
+    # Option 1: Use process_allgather to collect results from all processes
+    c_gathered = multihost_utils.process_allgather(c)
+    print("Gathered result (all processes):")
     print(c_gathered)
 
+    # Option 2: Print only the local part of the result
+    print("\nLocal part of the result:")
+    for shard in c.addressable_shards:
+        print(f"Device: {shard.device}")
+        print(shard.data)
 
-# def matmul_basic(a, b):
-#     c = jnp.dot(a, b)
-#     return c
+else:
+    # For non-zero processes, we still need to participate in the allgather
+    _ = multihost_utils.process_allgather(matmul_basic(a, b))
+# Synchronize all processes
+multihost_utils.sync_global_devices("end_of_script")
 
 # matmul_basic_jitted = jax.jit(
 #     matmul_basic,
@@ -57,3 +65,4 @@ if jax.process_index() == 0:
 
 #     c = matmul_basic_jitted(a, b)
 #     print("matmul_basic_jitted", c)
+
