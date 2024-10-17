@@ -34,10 +34,10 @@ matmul_basic_jitted = jax.jit(
 
 if jax.process_index() == 0:
     a = jnp.arange(8 * 16).reshape(8, 16)
-    b = jnp.arange(16 * 4).reshape(16, 4)
+    b = jnp.arange(16 * 8).reshape(16, 8)
 
     c = matmul_basic(a, b)
-    print(c) 
+    print("matmul_basic", c) 
     
     a_sharding = NamedSharding(mesh, P('x', 'y'))
     b_sharding = NamedSharding(mesh, P('y', 'x'))
@@ -46,4 +46,4 @@ if jax.process_index() == 0:
     b = jax.device_put(b, b_sharding)
 
     c = matmul_basic_jitted(a, b)
-    print(c)
+    print("matmul_basic_jitted", c)
