@@ -5,7 +5,7 @@ if jax.process_index() == 0:
     print(jax.device_count())
 
 import jax.numpy as jnp
-from jax.sharding import Mesh, PartitionSpec as P
+from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
 from jax.experimental import mesh_utils
 from jax.experimental.shard_map import shard_map
 
