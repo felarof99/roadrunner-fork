@@ -27,15 +27,16 @@ add_basic_jitted = jax.jit(
     out_shardings=NamedSharding(mesh, P()),
 )
 
-# Create and shard data on all processes
-a = jnp.arange(8 * 16).reshape(8, 16)
-b = jnp.arange(8 * 16).reshape(8, 16)
+if jax.process_index() == 0:
+    # Create and shard data on all processes
+    a = jnp.arange(8 * 16).reshape(8, 16)
+    b = jnp.arange(8 * 16).reshape(8, 16)
 
-a_sharding = NamedSharding(mesh, P('x', 'y'))
-b_sharding = NamedSharding(mesh, P('x', 'y'))
+    a_sharding = NamedSharding(mesh, P('x', 'y'))
+    b_sharding = NamedSharding(mesh, P('x', 'y'))
 
-a = jax.device_put(a, a_sharding)
-b = jax.device_put(b, b_sharding)
+    a = jax.device_put(a, a_sharding)
+    b = jax.device_put(b, b_sharding)
 
-c = add_basic_jitted(a, b)
-print("add_basic_jitted", c)
+    c = add_basic_jitted(a, b)
+    print("add_basic_jitted", c)
