@@ -24,6 +24,7 @@ add_basic_jitted = jax.jit(
     in_shardings=(NamedSharding(mesh,
                                 P('x', 'y')),
                   NamedSharding(mesh, P('x', 'y'))),
+    out_shardings=NamedSharding(mesh, P()),
 )
 
 # Create and shard data on all processes
