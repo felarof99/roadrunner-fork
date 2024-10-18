@@ -24,7 +24,7 @@ def add_basic(a, b):
 @partial(shard_map,
          mesh=mesh,
          in_specs=(P('x', 'y'), P('x', 'y')),
-         out_specs=P())
+         out_specs=P('x'))
 def add_basic(a_block, b_block):
     c_partialsum = a_block + b_block
     return c_partialsum
