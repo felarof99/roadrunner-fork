@@ -30,8 +30,8 @@ def add_basic(a_block, b_block):
     return c_partialsum
 
 # Create and shard data on all processes
-a = jnp.arange(8 * 16).reshape(8, 16)
-b = jnp.arange(8 * 16).reshape(8, 16)
+a = jnp.arange(8 * 8).reshape(8, 8)
+b = jnp.arange(8 * 8).reshape(8, 8)
 
 c = add_basic(a, b)
 print("add_basic", c)
