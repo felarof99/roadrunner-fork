@@ -13,8 +13,8 @@ from jax.experimental.shard_map import shard_map
 from jax.experimental import multihost_utils
 
 
-devices = mesh_utils.create_device_mesh((4, 2))
-mesh = Mesh(devices, axis_names=('x', 'y'))
+devices = mesh_utils.create_device_mesh((8,))
+mesh = Mesh(devices, axis_names=('i',))
 
 
 def add_basic(a, b):
@@ -23,8 +23,8 @@ def add_basic(a, b):
 
 @partial(shard_map,
          mesh=mesh,
-         in_specs=(P('x', 'y'), P('x', 'y')),
-         out_specs=P('x'))
+         in_specs=(P('i'), P('i')),
+         out_specs=P('i'))
 def add_basic(a_block, b_block):
     c_partialsum = a_block + b_block
     return c_partialsum
