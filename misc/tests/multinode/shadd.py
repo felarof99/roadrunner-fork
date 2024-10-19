@@ -40,6 +40,7 @@ if jax.process_index() == 0:
     a = jnp.arange(8 * 8).reshape(8, 8)
     b = jnp.arange(8 * 8).reshape(8, 8)
     c = add_basic(a, b)
+    print("add done")
     c = get_c(c)
     print(c)
     print(jax.debug.visualize_array_sharding(c))
