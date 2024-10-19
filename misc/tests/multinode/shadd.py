@@ -29,9 +29,9 @@ def add_basic(a_block, b_block):
     c_partialsum = a_block + b_block
     return c_partialsum
 
-# Create and shard data on all processes
-a = jnp.arange(8 * 8).reshape(8, 8)
-b = jnp.arange(8 * 8).reshape(8, 8)
-
-c = add_basic(a, b)
-print(jax.debug.visualize_array_sharding(c))
+if jax.process_index() == 0:
+    # Create and shard data on all processes
+    a = jnp.arange(8 * 8).reshape(8, 8)
+    b = jnp.arange(8 * 8).reshape(8, 8)
+    c = add_basic(a, b)
+    print(jax.debug.visualize_array_sharding(c))
