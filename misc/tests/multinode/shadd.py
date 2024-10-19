@@ -29,10 +29,17 @@ def add_basic(a_block, b_block):
     c_partialsum = a_block + b_block
     return c_partialsum
 
+@partial(jax.jit,
+         in_shardings=NamedSharding(mesh, P('i')),
+         out_shardings=NamedSharding(mesh, P()))
+def get_c(c):
+    return c
+
 if jax.process_index() == 0:
     # Create and shard data on all processes
     a = jnp.arange(8 * 8).reshape(8, 8)
     b = jnp.arange(8 * 8).reshape(8, 8)
     c = add_basic(a, b)
     breakpoint()
+    c = get_c(c)
     print(jax.debug.visualize_array_sharding(c))
