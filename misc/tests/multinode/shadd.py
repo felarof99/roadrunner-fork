@@ -24,7 +24,7 @@ def add_basic(a, b):
 @partial(shard_map,
          mesh=mesh,
          in_specs=(P('i'), P('i')),
-         out_specs=P())
+         out_specs=P('i'))
 def add_basic(a_block, b_block):
     c_partialsum = a_block + b_block
     return c_partialsum
@@ -34,4 +34,5 @@ if jax.process_index() == 0:
     a = jnp.arange(8 * 8).reshape(8, 8)
     b = jnp.arange(8 * 8).reshape(8, 8)
     c = add_basic(a, b)
+    breakpoint()
     print(jax.debug.visualize_array_sharding(c))
