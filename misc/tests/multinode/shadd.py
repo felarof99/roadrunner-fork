@@ -11,7 +11,6 @@ from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
 from jax.experimental import mesh_utils
 from jax.experimental.shard_map import shard_map
 from jax.experimental import multihost_utils
-from jax.experimental.multihost_utils import broadcast_one_to_all
 
 
 devices = mesh_utils.create_device_mesh((8,))
@@ -37,29 +36,11 @@ def get_c(c):
     return c
 
 if jax.process_index() == 0:
-    # Create arrays only on process 0
+    # Create and shard data on all processes
     a = jnp.arange(8 * 8).reshape(8, 8)
     b = jnp.arange(8 * 8).reshape(8, 8)
-else:
-    # On other processes, initialize `a` and `b` as None
-    a = None
-    b = None
-
-# Broadcast the arrays from process 0 to all processes
-a = broadcast_one_to_all(a)
-b = broadcast_one_to_all(b)
-
-# Proceed with the computation
-c = add_basic(a, b)
-
-if jax.process_index() == 0:
+    c = add_basic(a, b)
     print("add done")
-
-# Gather the sharded array from all processes
-c = get_c(c)
-c_gathered = multihost_utils.process_allgather(c)
-
-# Only process 0 prints the gathered array
-if jax.process_index() == 0:
-    print(c_gathered)
-    print(jax.debug.visualize_array_sharding(c_gathered))
+    c = get_c(c)
+    print(c)
+    print(jax.debug.visualize_array_sharding(c))
