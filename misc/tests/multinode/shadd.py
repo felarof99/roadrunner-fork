@@ -20,11 +20,16 @@ mesh = Mesh(devices, axis_names=('host', 'device'))
 
 host_id = jax.process_index()
 
-a_host_local = np.arange(8 * 8).reshape(8, 8)
-b_host_local = np.arange(8 * 8).reshape(8, 8)
-
 pspec = P('host')
 
+if host_id == 0:
+    a_host_local = np.arange(8 * 8).reshape(8, 8)
+    b_host_local = np.arange(8 * 8).reshape(8, 8)
+else:
+    a_host_local = None
+    b_host_local = None
+
+# Attempt to convert host-local arrays to global arrays
 a_global = multihost_utils.host_local_array_to_global_array(a_host_local, mesh, pspec)
 b_global = multihost_utils.host_local_array_to_global_array(b_host_local, mesh, pspec)
 
