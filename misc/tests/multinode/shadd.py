@@ -15,7 +15,7 @@ devices_per_host = jax.local_device_count()
 assert num_hosts == 2, "This script requires exactly 2 hosts."
 assert devices_per_host == 4, "Each host must have exactly 4 devices."
 
-devices = np.array(jax.devices()).reshape((1, 8))
+devices = np.array(jax.devices()).reshape((8, 1))
 mesh = Mesh(devices, axis_names=('host', 'device'))
 
 host_id = jax.process_index()
