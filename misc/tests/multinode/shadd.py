@@ -7,7 +7,7 @@ print(f"Process index: {jax.process_index()}, Device count: {jax.device_count()}
 
 import numpy as np
 import jax.numpy as jnp
-from jax.sharding import Mesh, PartitionSpec as P
+from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
 from jax.experimental import multihost_utils
 
 # Get the total number of hosts and devices per host
@@ -39,8 +39,8 @@ b_global = multihost_utils.host_local_array_to_global_array(b_host_local, mesh, 
 # Define the computation using jax.jit with in_shardings and out_shardings
 @partial(
     jax.jit,
-    in_shardings=(P('host'), P('host')),
-    out_shardings=P('host')
+    in_shardings=(NamedSharding(mesh, P('host')), NamedSharding(mesh, P('host'))),
+    out_shardings=NamedSharding(mesh, P('host'))
 )
 def add_arrays(a, b):
     return a + b
