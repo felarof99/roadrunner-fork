@@ -19,14 +19,14 @@ assert num_hosts == 2, "This script requires exactly 2 hosts."
 assert devices_per_host == 4, "Each host must have exactly 4 devices."
 
 # Get all devices and reshape them into (num_hosts, devices_per_host)
-devices = np.array(jax.devices()).reshape((num_hosts, devices_per_host))
+devices = np.array(jax.devices()).reshape((1, 8))
 
 # Create a mesh with 'host' and 'device' axes
 mesh = Mesh(devices, axis_names=('host', 'device'))
 
 # Create host-local data on each host
 host_id = jax.process_index()
-a_host_local = np.arange(8 * 8).reshape(8, 8) + host_id * 1000  # Unique data per host
+a_host_local = np.arange(8 * 8).reshape(8, 8) 
 b_host_local = np.arange(8 * 8).reshape(8, 8)  # Same data on all hosts
 
 # Define PartitionSpec to partition over the 'host' axis
