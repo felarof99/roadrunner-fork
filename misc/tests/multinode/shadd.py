@@ -37,10 +37,11 @@ b_global = multihost_utils.host_local_array_to_global_array(b_host_local, mesh, 
 def add_arrays(a, b):
     return a + b
 
-with mesh:
-    c_global = add_arrays(a_global, b_global)
+c_global = add_arrays(a_global, b_global)
+print(jax.debug.visualize_array_sharding(a_global))
 
 c_host_local = multihost_utils.global_array_to_host_local_array(c_global, mesh, pspec)
+print(jax.debug.visualize_array_sharding(c_host_local))
 
 print(f"Host {host_id} local output:")
 print(c_host_local)
