@@ -42,6 +42,7 @@ print(jax.debug.visualize_array_sharding(a_global))
 
 c_host_local = multihost_utils.global_array_to_host_local_array(c_global, mesh, pspec)
 print(jax.debug.visualize_array_sharding(c_host_local))
+print(f"{c_host_local.addressable_shards=}")
 
 print(f"Host {host_id} local output:")
 print(c_host_local)
