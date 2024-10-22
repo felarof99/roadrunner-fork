@@ -26,6 +26,9 @@ pspec = P('host')
 if host_id == 0:
     a_host_local = np.arange(8 * 8).reshape(8, 8)
     b_host_local = np.arange(8 * 8).reshape(8, 8)
+else:
+    a_host_local = jnp.ones(shape=(8,8)) # np.arange(8 * 8).reshape(8, 8)
+    b_host_local = jnp.ones(shape=(8,8)) # np.arange(8 * 8).reshape(8, 8)
 
 # Attempt to convert host-local arrays to global arrays
 a_global = multihost_utils.host_local_array_to_global_array(
