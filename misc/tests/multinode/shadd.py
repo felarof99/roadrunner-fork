@@ -1,9 +1,10 @@
-from functools import partial
 import jax
-
 jax.distributed.initialize()
-print(f"Process index: {jax.process_index()}, Device count: {jax.device_count()}")
+print(
+    f"Process index: {jax.process_index()}, Device count: {jax.device_count()}"
+)
 
+from functools import partial
 import numpy as np
 import jax.numpy as jnp
 from jax.sharding import Mesh, PartitionSpec as P, NamedSharding
@@ -22,25 +23,30 @@ host_id = jax.process_index()
 
 pspec = P('host')
 
-a_host_local = np.arange(8 * 8).reshape(8, 8)
-b_host_local = np.arange(8 * 8).reshape(8, 8)
+if host_id == 0:
+    a_host_local = np.arange(8 * 8).reshape(8, 8)
+    b_host_local = np.arange(8 * 8).reshape(8, 8)
 
 # Attempt to convert host-local arrays to global arrays
-a_global = multihost_utils.host_local_array_to_global_array(a_host_local, mesh, pspec)
-b_global = multihost_utils.host_local_array_to_global_array(b_host_local, mesh, pspec)
+a_global = multihost_utils.host_local_array_to_global_array(
+    a_host_local, mesh, pspec)
+b_global = multihost_utils.host_local_array_to_global_array(
+    b_host_local, mesh, pspec)
 
-@partial(
-    jax.jit,
-    in_shardings=(NamedSharding(mesh, P('host')), NamedSharding(mesh, P('host'))),
-    out_shardings=NamedSharding(mesh, P('host'))
-)
+
+@partial(jax.jit,
+         in_shardings=(NamedSharding(mesh, P('host')),
+                       NamedSharding(mesh, P('host'))),
+         out_shardings=NamedSharding(mesh, P('host')))
 def add_arrays(a, b):
     return a + b
+
 
 c_global = add_arrays(a_global, b_global)
 print(jax.debug.visualize_array_sharding(a_global))
 
-c_host_local = multihost_utils.global_array_to_host_local_array(c_global, mesh, pspec)
+c_host_local = multihost_utils.global_array_to_host_local_array(
+    c_global, mesh, pspec)
 print(jax.debug.visualize_array_sharding(c_host_local))
 print(f"{c_host_local.addressable_shards=}")
 
