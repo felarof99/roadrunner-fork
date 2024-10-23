@@ -22,17 +22,31 @@ import llama3_jax
 from llama3_jax.trainer_engine import jax_utils, trainer_lib
 
 
-class Model(nn.Module):
+def create_dataset(x, y, batch_size):
+    # yapf: disable
+    dataset = (
+        tf.data.Dataset.from_tensor_slices((x.reshape(-1, 28 * 28),y))
+        .batch(batch_size)
+        .repeat()
+        .prefetch(tf.data.AUTOTUNE)
+        .as_numpy_iterator())
+    # yapf: enable
+    return dataset
 
+
+def get_batch(dataset):
+    images, labels = next(dataset)
+    return jnp.array(images), jnp.array(labels, dtype=jnp.int32)
+
+class Model(nn.Module):
     @nn.compact
     def __call__(self, x):
-        x = nn.Dense(1024, name='dense1')(x)
-        x = nn.relu(x)
-        x = nn.Dense(1024, name='dense2')(x)
-        x = nn.relu(x)
+        # x = nn.Dense(1024, name='dense1')(x)
+        # x = nn.relu(x)
+        # x = nn.Dense(1024, name='dense2')(x)
+        # x = nn.relu(x)
         x = nn.Dense(10, name='final_layer')(x)
         return x
-
 
 def train_step(state, batch):
     images, labels = batch
@@ -47,25 +61,6 @@ def train_step(state, batch):
     state = state.apply_gradients(grads=grads)
     return state, {'loss': loss}
 
-
-def create_dataset(x, y, batch_size):
-    # yapf: disable
-    dataset = (
-        tf.data.Dataset.from_tensor_slices((x.reshape(-1, 28 * 28),y))
-        .shuffle(buffer_size=5000)
-        .batch(batch_size)
-        .repeat()
-        .prefetch(tf.data.AUTOTUNE)
-        .as_numpy_iterator())
-    # yapf: enable
-    return dataset
-
-
-def get_batch(dataset):
-    images, labels = next(dataset)
-    return jnp.array(images), jnp.array(labels, dtype=jnp.int32)
-
-
 model = Model()
 params = model.init(jax.random.PRNGKey(0), jnp.ones([1, 28 * 28]))['params']
 tx = optax.adam(learning_rate=0.001)
@@ -73,13 +68,13 @@ state = train_state.TrainState.create(apply_fn=model.apply,
                                       params=params,
                                       tx=tx)
 
-
-# Load and preprocess the MNIST dataset
+# Create the dataset
 (x_train, y_train), _ = tf.keras.datasets.mnist.load_data()
 x_train = x_train.reshape(-1, 28 * 28) / 255.0
 y_train = jax.nn.one_hot(y_train, 10)
 
-train_ds = create_dataset(x_train, y_train, batch_size=64)
+# The same train_ds would exist on all the hosts
+train_ds = create_dataset(x_train, y_train, batch_size=16)
 
 # create mesh
 devices = np.array(jax.devices()).reshape((8, 1))
