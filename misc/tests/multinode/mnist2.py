@@ -1,10 +1,10 @@
 import os
+import functools
 import sys
 import jax
 import numpy as np
 import re
-
-jax.distributed.initialize()
+# jax.distributed.initialize()
 
 import jax.numpy as jnp
 import flax.linen as nn
@@ -19,6 +19,7 @@ from jax.experimental import multihost_utils
 
 sys.path.append(os.path.abspath(os.getcwd()))
 sys.path.append(os.path.abspath(os.path.dirname(os.getcwd())))
+sys.path.append(os.path.abspath(os.path.join(os.getcwd(), "../../../")))
 
 import llama3_jax
 from llama3_jax.trainer_engine import jax_utils, trainer_lib
@@ -89,15 +90,16 @@ MESH = Mesh(DEVICES, axis_names=('batch', 'mp'))
 model = Model()
 
 # Get state shapes and partition them -- you'll use that partitioned shapes in jax.jit decorator.
-state_shapes = jax.eval_shape(create_train_state, model)
+state_shapes = jax.eval_shape(
+    functools.partial(create_train_state, model=model))
 state_shapes_partitioned = jax_utils.match_partition_rules(
-    STATE_SHARDING_RULES, state_shapes, MESH)
+    STATE_SHARDING_RULES, state_shapes.params, MESH)
 
 # Now, actually create the train state and partition it.
 # (even if you don't partition it, when passing to jax.jit, it'll get partitioned)
 state = create_train_state(model)
-state.params = jax_utils.match_partition_rules(STATE_SHARDING_RULES,
-                                               state.params, MESH)
+state = state.replace(params=jax_utils.match_partition_rules(
+    STATE_SHARDING_RULES, state.params, MESH))
 
 # Create the dataset
 (x_train, y_train), _ = tf.keras.datasets.mnist.load_data()
@@ -121,7 +123,7 @@ jitted_train_step = jax.jit(
     in_shardings=(state_shapes_partitioned,
                   NamedSharding(MESH, PS('batch', 'mp')),
                   NamedSharding(MESH, PS('batch', 'mp'))),
-    out_shardings=(state_shapes_partitioned, PS()))
+    out_shardings=(state_shapes_partitioned, NamedSharding(MESH, PS())))
 
 state, metrics = jitted_train_step(state, images_global, labels_global)
 print(metrics)
