@@ -41,11 +41,11 @@ def get_batch(dataset):
 class Model(nn.Module):
     @nn.compact
     def __call__(self, x):
-        # x = nn.Dense(1024, name='dense1')(x)
+        # x = nn.Dense(1024, name='dense1', use_bias=False)(x)
         # x = nn.relu(x)
-        # x = nn.Dense(1024, name='dense2')(x)
+        # x = nn.Dense(1024, name='dense2', use_bias=False)(x)
         # x = nn.relu(x)
-        x = nn.Dense(10, name='final_layer')(x)
+        x = nn.Dense(10, name='final_layer', use_bias=False)(x)
         return x
 
 def train_step(state, batch):
@@ -78,16 +78,13 @@ train_ds = create_dataset(x_train, y_train, batch_size=16)
 
 # create mesh
 devices = np.array(jax.devices()).reshape((8, 1))
-mesh = Mesh(devices, axis_names=('x', 'y'))
+mesh = Mesh(devices, axis_names=('batch', 'mp'))
 
 # state sharding
 state_sharding_rules = [
-    ("dense1/kernel", PS("x", "y")),
-    ("dense1/bias", PS(None)),
-    ("dense2/kernel", PS("x", "y")),
-    ("dense2/bias", PS(None)),
-    ("final_layer/kernel", PS("x", "y")),
-    ("final_layer/bias", PS(None)),
+    # ("dense1/kernel", PS("x", "y")),
+    # ("dense2/kernel", PS("x", "y")),
+    ("final_layer/kernel", PS("batch", "mp")),
     # Add a catch-all rule at the end
     (".*", PS(None)),
 ]
