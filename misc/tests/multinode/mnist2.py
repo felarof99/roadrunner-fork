@@ -4,7 +4,7 @@ import sys
 import jax
 import numpy as np
 import re
-# jax.distributed.initialize()
+jax.distributed.initialize()
 
 import jax.numpy as jnp
 import flax.linen as nn
