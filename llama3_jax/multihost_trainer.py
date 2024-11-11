@@ -13,6 +13,16 @@ print("lkajdfkadjflkajdlkfjadlkfjdakj")
 def add(a, b):
     return a + b
 
+with jax.default_device("cpu"):
+    data = load("big_dataset}")
+    data_current_host = data[length*jax.process_index():length*(jax.process_index() + 1]
+                            
+data_current_host = jax.device_put(data_current_host, PS("i"))
+
+x = [1 2 3 4] 
+x = x[jax.process_index()*2:(jax.process_index()+1)*2]
+x = jax.device_put(x, sharded) # Shard over 4 devices per host. 
+x = multihost_utils.local_to_global_array(x)
 
 a = jnp.arange(8 * 1024).reshape(8, 1024)
 b = jnp.arange(8 * 1024).reshape(8, 1024)
