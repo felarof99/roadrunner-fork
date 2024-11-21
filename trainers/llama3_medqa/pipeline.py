@@ -44,7 +44,7 @@ medqa_config = DatasetConfig(
     data_source="ngram/medchat-qa",
     max_examples=None,
     # Batching parameters
-    batch_size=8,
+    batch_size=32, # 32 fails, 16 works
     max_seq_length=4096,  # 8192 fails, 4096 works
     num_workers=8,
     ignore_index=-100,
@@ -69,7 +69,7 @@ trainer_config = TrainerConfig(
     num_epochs=1,
     num_steps=20,  # set to None to run through the entire dataset
     num_tpus=jax.device_count(),
-    mesh_shape=(1, 1, 4),  # (batch, fsdp, mp)
+    mesh_shape=(2, 2, 1),  # (batch, fsdp, mp)
     # lora configuration
     lora_rank=16,
     use_lora=False,
