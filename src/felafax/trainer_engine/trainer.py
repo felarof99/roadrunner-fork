@@ -15,6 +15,7 @@ from src.felafax.trainer_engine.utils import named_tree_map
 
 import optax
 import os
+import time
 
 from src.felafax.trainer_engine.checkpoint import (
     Checkpointer,
@@ -287,6 +288,11 @@ class Trainer:
         prev_val_loss = 0.0
         prev_val_accuracy = 0.0
 
+        # Initialize variables for timing
+        time_cumulative = 0.0
+        time_count = 0
+        prev_avg_step_time = 0.0
+
         for epoch in range(self.trainer_config.num_epochs):
             print(
                 f"Started epoch {epoch + 1} of {self.trainer_config.num_epochs}..."
@@ -296,27 +302,23 @@ class Trainer:
                 if step >= max_steps:
                     break
 
-                if (
-                    step == 1
-                    or (step + 1) % self.trainer_config.log_interval == 0
-                ):
+                if step == 1 or (step + 1) % self.trainer_config.log_interval == 0:
                     # Printing metrics of previous step to avoid disrupting XLA pipelining
                     print(
                         f"Step {prev_step} | "
                         f"Train Loss: {prev_loss:.4f} | "
                         f"Val Loss: {prev_val_loss:.4f} | "
-                        f"Next Token Prediction Accuracy (train, val): {prev_accuracy:.2%}, {prev_val_accuracy:.2%}"
+                        # f"Next Token Prediction Accuracy (train, val): {prev_accuracy:.2%}, {prev_val_accuracy:.2%} | "
+                        f"Avg Time per Step: {prev_avg_step_time:.4f}s"
                     )
 
-                pass
-
+                # Preprocess batch and put on devices
                 batch = _preprocess_batch(batch)
-                batch = jax.device_put(
-                    batch, NamedSharding(self.mesh, PS("batch"))
-                )
-                optimizer_state = jax.device_put(
-                    optimizer_state, NamedSharding(self.mesh, PS())
-                )
+                batch = jax.device_put(batch, NamedSharding(self.mesh, PS("batch")))
+                optimizer_state = jax.device_put(optimizer_state, NamedSharding(self.mesh, PS()))
+
+                # Start timing before training step
+                start_time = time.time()
 
                 (
                     loss,
@@ -328,21 +330,31 @@ class Trainer:
                     optimizer_state=optimizer_state,
                     batch=batch,
                 )
+                loss.block_until_ready()
+                # End timing after training step
+                end_time = time.time()
+                step_duration = end_time - start_time
+                time_cumulative += step_duration
+                time_count += 1
+                print("Loss:", loss)
 
+                # Update previous step metrics
                 prev_step = step + 1
                 prev_loss = loss
                 prev_accuracy = accuracy
 
-                if (
-                    step == 0
-                    or (step + 1) % self.trainer_config.eval_interval == 0
-                ):
+                if time_count == self.trainer_config.log_interval:
+                    # Compute average time per step over log_interval
+                    prev_avg_step_time = time_cumulative / time_count
+                    time_cumulative = 0.0
+                    time_count = 0
+
+                if step == 0 or (step + 1) % self.trainer_config.eval_interval == 0:
                     prev_val_loss, prev_val_accuracy = self.evaluate(
                         model_params=model_params,
                         model_static=model_static,
                         max_eval_steps=self.trainer_config.eval_steps,
                     )
-                pass
 
                 if self.checkpointer:
                     self.checkpointer.save_checkpoint(
@@ -350,7 +362,6 @@ class Trainer:
                         model_config=self.model_config,
                         step=step + 1,
                     )
-                pass
 
         # Update the model with the trained parameters
         self.model = eqx.combine(model_params, model_static)
