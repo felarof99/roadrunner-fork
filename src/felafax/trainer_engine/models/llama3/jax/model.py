@@ -6,6 +6,7 @@ import equinox as eqx
 from typing import Optional, Any, List
 import ml_dtypes
 import jax.nn.initializers as init
+import jax.lax as lax
 
 
 DTYPE_MAP = {
@@ -575,7 +576,6 @@ class LlamaModel(eqx.Module):
         )
 
         layer_keys = jax.random.split(key, config.num_hidden_layers)
-        # TODO(mfu): use lax.scan.
         self.layers = [
             LlamaDecoderLayer(
                 config,
@@ -595,14 +595,89 @@ class LlamaModel(eqx.Module):
     def __call__(self, input_ids, attention_mask=None, position_ids=None):
         hidden_states = self.embed_tokens(input_ids)
 
+        # # TODO(mfu): use lax.scan.
+        # policy = remat_policy["nothing"]
+        # for layer in self.layers:
+        #     hidden_states = eqx.filter_checkpoint(layer, policy=policy)(
+        #         hidden_states, attention_mask, position_ids
+        #     )
+
+        # policy = remat_policy["nothing"]
+        # def scan_fn(hidden_states, layer):
+        #     next_hidden_states = eqx.filter_checkpoint(
+        #         layer, policy=policy
+        #     )(hidden_states, attention_mask, position_ids)
+        #     return next_hidden_states, None
+
+        # # Apply scan over the layers
+        # hidden_states, _ = jax.lax.scan(
+        #     scan_fn,  # function to apply
+        #     hidden_states,  # initial carry value
+        #     self.layers,  # sequence to scan over
+        # )
+
+        # # Create array of indices matching number of layers
+        # num_layers = len(self.layers)
+        # layer_indices = jnp.arange(num_layers)
+
+        # # Define scan function that processes one layer at a time
+        # def scan_fn(carry, layer_idx):
+        #     current_hidden_states = carry
+        #     current_layer = self.layers[layer_idx]
+
+        #     # Apply the current layer with checkpointing
+        #     new_hidden_states = eqx.filter_checkpoint(
+        #         current_layer, policy=remat_policy["nothing"]
+        #     )(current_hidden_states, attention_mask, position_ids)
+
+        #     return new_hidden_states, None
+
+        # # Scan over layer indices, carrying hidden states through each layer
+        # hidden_states, _ = jax.lax.scan(
+        #     f=scan_fn,  # Function to apply at each step
+        #     init=hidden_states,  # Initial hidden states (carry)
+        #     xs=layer_indices,  # Sequence to scan over (layer indices)
+        # )
+
+        # Partition the TransformerLayers into static and dynamic parts
+        dynamic_layers, static_layers = eqx.partition(self.layers, eqx.is_array)
+
+        # def f(_x, _dynamic_l):
+        #     layer = eqx.combine(_dynamic_l, static_layers)
+        #     h, cache_k, cache_v, layer_idx = _x
+        #     h, cache_ki, cache_vi = layer(
+        #         h,
+        #         cos_freq,
+        #         sin_freq,
+        #         positions,
+        #         mask,
+        #         cache_k[layer_idx, ...],
+        #         cache_v[layer_idx, ...],
+        #     )
+        #     cache_k = cache_k.at[layer_idx, :, :, :].set(cache_ki)
+        #     cache_v = cache_v.at[layer_idx, :, :, :].set(cache_vi)
+        #     return (h, cache_k, cache_v, layer_idx + 1), None
+
+        # layer_idx = 0
+        # (h, cache_k, cache_v, layer_idx), _ = jax.lax.scan(
+        #     f, (h, cache_k, cache_v, layer_idx), dynamic_layers
+        # )
+
         policy = remat_policy["nothing"]
-        for layer in self.layers:
-            hidden_states = eqx.filter_checkpoint(layer, policy=policy)(
-                hidden_states, attention_mask, position_ids
-            )
+        def scan_fn(hidden_states, dynamic_layer):
+            layer = eqx.combine(dynamic_layer, static_layers)
+            next_hidden_states = eqx.filter_checkpoint(
+                layer, policy=policy
+            )(hidden_states, attention_mask, position_ids)
+            return next_hidden_states, None
 
+        # Apply scan over the layers
+        hidden_states, _ = jax.lax.scan(
+            scan_fn,  # function to apply
+            hidden_states,  # initial carry value
+            dynamic_layers,
+        )
         hidden_states = self.norm(hidden_states)
-
         return hidden_states.astype(self.compute_dtype)
 
 
