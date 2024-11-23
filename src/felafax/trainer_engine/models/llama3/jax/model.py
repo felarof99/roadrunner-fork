@@ -602,19 +602,22 @@ class LlamaModel(eqx.Module):
         #         hidden_states, attention_mask, position_ids
         #     )
 
-        # policy = remat_policy["nothing"]
-        # def scan_fn(hidden_states, layer):
-        #     next_hidden_states = eqx.filter_checkpoint(
-        #         layer, policy=policy
-        #     )(hidden_states, attention_mask, position_ids)
-        #     return next_hidden_states, None
+        policy = remat_policy["nothing"]
+        dynamic_layers, static_layers = eqx.partition(self.layers, eqx.is_array)
+        def scan_fn(hidden_states, dynamic_layer):
+            layer = eqx.combine(dynamic_layer, static_layers)
+            # next_hidden_states = eqx.filter_checkpoint(
+            #     layer, policy=policy
+            # )(hidden_states, attention_mask, position_ids)
+            next_hidden_states = layer(hidden_states, attention_mask, position_ids)
+            return next_hidden_states, None
 
-        # # Apply scan over the layers
-        # hidden_states, _ = jax.lax.scan(
-        #     scan_fn,  # function to apply
-        #     hidden_states,  # initial carry value
-        #     self.layers,  # sequence to scan over
-        # )
+        # Apply scan over the layers
+        hidden_states, _ = jax.lax.scan(
+            scan_fn,  # function to apply
+            hidden_states,  # initial carry value
+            dynamic_layers,  # sequence to scan over
+        )
 
         # # Create array of indices matching number of layers
         # num_layers = len(self.layers)
@@ -640,7 +643,7 @@ class LlamaModel(eqx.Module):
         # )
 
         # Partition the TransformerLayers into static and dynamic parts
-        dynamic_layers, static_layers = eqx.partition(self.layers, eqx.is_array)
+        # dynamic_layers, static_layers = eqx.partition(self.layers, eqx.is_array)
 
         # def f(_x, _dynamic_l):
         #     layer = eqx.combine(_dynamic_l, static_layers)
@@ -663,20 +666,22 @@ class LlamaModel(eqx.Module):
         #     f, (h, cache_k, cache_v, layer_idx), dynamic_layers
         # )
 
-        policy = remat_policy["nothing"]
-        def scan_fn(hidden_states, dynamic_layer):
-            layer = eqx.combine(dynamic_layer, static_layers)
-            next_hidden_states = eqx.filter_checkpoint(
-                layer, policy=policy
-            )(hidden_states, attention_mask, position_ids)
-            return next_hidden_states, None
+        # policy = remat_policy["nothing"]
+        # def scan_fn(hidden_states, dynamic_layer):
+        #     layer = eqx.combine(dynamic_layer, static_layers)
+        #     next_hidden_states = eqx.filter_checkpoint(
+        #         layer, policy=policy
+        #     )(hidden_states, attention_mask, position_ids)
+        #     return next_hidden_states, None
 
-        # Apply scan over the layers
-        hidden_states, _ = jax.lax.scan(
-            scan_fn,  # function to apply
-            hidden_states,  # initial carry value
-            dynamic_layers,
-        )
+        # # Apply scan over the layers
+        # hidden_states, _ = jax.lax.scan(
+        #     scan_fn,  # function to apply
+        #     hidden_states,  # initial carry value
+        #     dynamic_layers,
+        # )
+        
+        
         hidden_states = self.norm(hidden_states)
         return hidden_states.astype(self.compute_dtype)
 
