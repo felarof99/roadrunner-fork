@@ -9,17 +9,16 @@ cloudpickle
 pytest
 ruff==0.2.2
 typeguard==2.13.3
-memory_profiler
+# memory_profiler
 
-# Deep Learning frameworks and core ML
-torch --index-url https://download.pytorch.org/whl/cpu
-torchvision
+
+# Other Deep Learning frameworks and core ML
 jax
 jaxlib
 equinox>=0.11.8
 # flax[all]
 optax
-orbax
+orbax-checkpoint
 transformers>=4.43
 accelerate>=0.26.0
 quax
@@ -42,3 +41,6 @@ gcsfs
 pyrallis
 absl-py
 python-dotenv
+
+# --index-url https://download.pytorch.org/whl/cpu
+torch
