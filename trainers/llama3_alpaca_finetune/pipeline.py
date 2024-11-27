@@ -34,7 +34,7 @@ BASE_DIR = os.getenv("BASE_DIR") or input(
 # Configure the dataset pipeline
 ########################################################
 tokenizer = AutoTokenizer.from_pretrained(
-    "meta-llama/Llama-3.2-1B", token=HF_TOKEN
+    "meta-llama/Llama-3.1-8B", token=HF_TOKEN
 )
 
 dataset_config = DatasetConfig(
@@ -84,7 +84,7 @@ val_dataloader = create_dataloader(
 # Configure the trainer pipeline
 ########################################################
 trainer_config = TrainerConfig(
-    model_name="meta-llama/Llama-3.2-1B",
+    model_name="meta-llama/Llama-3.1-8B",
     param_dtype="bfloat16",
     compute_dtype="bfloat16",
     num_epochs=1,
@@ -92,7 +92,7 @@ trainer_config = TrainerConfig(
     num_tpus=jax.device_count(),
     lora_rank=16,
     use_lora=True,
-    learning_rate=1e-3,
+    learning_rate=1e-5,
     base_dir=BASE_DIR,
     hf_token=HF_TOKEN,
     log_interval=1,

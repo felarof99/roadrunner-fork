@@ -210,21 +210,10 @@ def load_llama_from_hf(
     param_dtype: Any = jnp.float32,
     compute_dtype: Any = jnp.float32,
 ) -> LlamaForCausalLM:
-    """Downloads and converts Hugging Face model to Equinox model with specified dtypes.
+    """Downloads and converts Hugging Face model to Equinox model with specified dtypes."""
+    jax.clear_caches()
 
-    Args:
-        model_name: Name of the Hugging Face model to load
-        mesh: JAX sharding mesh
-        token: HuggingFace token for accessing gated models
-        lora_rank: Rank for LoRA parameters (set to 0 for no LoRA)
-        param_dtype: The dtype in which parameters are stored
-        compute_dtype: The dtype in which computations are performed
-
-    Returns:
-        eqx_model: LlamaForCausalLM model with specified dtypes
-        model_config: Configuration of the model
-    """
-    # Load HF model on CPU to save GPU memory
+    # Load HF model on CPU
     hf_model = HFLlamaForCausalLM.from_pretrained(
         model_name,
         torch_dtype=torch.float32,
@@ -232,160 +221,202 @@ def load_llama_from_hf(
         device_map={"": "cpu"},
     )
 
-    # Create config and initialize Equinox model
+    # Create config and initialize model on CPU
     model_config = create_llama_config_from_hf_model(hf_model)
     model_config.lora_rank = lora_rank
 
-    key = jax.random.PRNGKey(42)
-    eqx_model = LlamaForCausalLM(
-        model_config,
-        param_dtype=param_dtype,
-        compute_dtype=compute_dtype,
-        key=key,
-    )
+    with jax.default_device(jax.devices("cpu")[0]):
+        key = jax.random.PRNGKey(42)
+        eqx_model = LlamaForCausalLM(
+            model_config,
+            param_dtype=param_dtype,
+            compute_dtype=compute_dtype,
+            key=key,
+        )
 
-    # Conversion functions
-    torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32, mesh=mesh)
-    torch_to_jax = _make_torch_to_jax(dtype=param_dtype, mesh=mesh)
+        # Copy weights on CPU first
+        def torch_to_jax_cpu(tensor, dtype=param_dtype):
+            return jnp.array(tensor.detach().numpy(), dtype=dtype)
 
-    # Copy embedding and output layers
-    eqx_model = eqx.tree_at(
-        lambda m: m.model.embed_tokens.weight,
-        eqx_model,
-        torch_to_jax_float32(
-            hf_model.model.embed_tokens.weight, PS(("mp", "fsdp"))
-        ),
-    )
-    eqx_model = eqx.tree_at(
-        lambda m: m.model.norm.weight,
-        eqx_model,
-        torch_to_jax_float32(hf_model.model.norm.weight, PS()),
-    )
-    eqx_model = eqx.tree_at(
-        lambda m: m.lm_head.weight,
-        eqx_model,
-        torch_to_jax(hf_model.lm_head.weight, PS(("fsdp", "mp"))),
-    )
+        # Copy embedding and output layers on CPU
+        eqx_model = eqx.tree_at(
+            lambda m: m.model.embed_tokens.weight,
+            eqx_model,
+            torch_to_jax_cpu(hf_model.model.embed_tokens.weight, dtype=jnp.float32),
+        )
+        eqx_model = eqx.tree_at(
+            lambda m: m.model.norm.weight,
+            eqx_model,
+            torch_to_jax_cpu(hf_model.model.norm.weight, dtype=jnp.float32),
+        )
+        eqx_model = eqx.tree_at(
+            lambda m: m.lm_head.weight,
+            eqx_model,
+            torch_to_jax_cpu(hf_model.lm_head.weight),
+        )
 
-    def _copy_weights(from_hf_layer_name, to_eqx_layer, partition_spec, dtype):
-        """Copies weights from HF layer to JAX array.
+        def _copy_weights_cpu(hf_model, from_hf_layer_name, to_eqx_layer, dtype):
+            """Copies weights from HF layer to JAX array on CPU."""
+            weight_arr = jnp.empty(to_eqx_layer.shape, dtype=dtype)
 
-        Since transformer layers are stacked using vmap in LlamaModel (creating a leading layer dimension), we create an empty JAX array and copy weights layer-by-layer to match this stacked structure."""
-        weight_arr = jnp.empty(to_eqx_layer.shape, dtype=dtype)
-        torch_to_jax_converter = _make_torch_to_jax(dtype=dtype, mesh=mesh)
+            for i in range(hf_model.config.num_hidden_layers):
+                layer_path = from_hf_layer_name.split(".")
+                current = hf_model.model.layers[i]
+                for attr in layer_path:
+                    current = getattr(current, attr)
 
-        for i in range(hf_model.config.num_hidden_layers):
-            layer_path = from_hf_layer_name.split(".")
-            current = hf_model.model.layers[i]
-            for attr in layer_path:
-                current = getattr(current, attr)
+                weight_arr = weight_arr.at[i].set(
+                    torch_to_jax_cpu(current.weight, dtype=dtype)
+                )
+            return weight_arr
 
-            weight_arr = weight_arr.at[i].set(
-                torch_to_jax_converter(current.weight, partition_spec)
-            )
-        return weight_arr
+        # Copy all layer weights on CPU
+        eqx_model = eqx.tree_at(
+            lambda m: m.model.layers.self_attn.q_proj.weight,
+            eqx_model,
+            _copy_weights_cpu(
+                hf_model,
+                "self_attn.q_proj",
+                eqx_model.model.layers.self_attn.q_proj.weight,
+                param_dtype,
+            ),
+        )
 
-    # Self-attention weights
-    eqx_model = eqx.tree_at(
-        lambda m: m.model.layers.self_attn.q_proj.weight,
-        eqx_model,
-        _copy_weights(
-            "self_attn.q_proj",  # copy from this HF layer name
-            eqx_model.model.layers.self_attn.q_proj.weight,  # to eqx layer
-            PS(("fsdp", "mp")),
-            param_dtype,
-        ),
-    )
+        eqx_model = eqx.tree_at(
+            lambda m: m.model.layers.self_attn.k_proj.weight,
+            eqx_model,
+            _copy_weights_cpu(
+                hf_model,
+                "self_attn.k_proj",
+                eqx_model.model.layers.self_attn.k_proj.weight,
+                param_dtype,
+            ),
+        )
 
-    eqx_model = eqx.tree_at(
-        lambda m: m.model.layers.self_attn.k_proj.weight,
-        eqx_model,
-        _copy_weights(
-            "self_attn.k_proj",
-            eqx_model.model.layers.self_attn.k_proj.weight,
-            PS(("fsdp", "mp")),
-            param_dtype,
-        ),
-    )
+        eqx_model = eqx.tree_at(
+            lambda m: m.model.layers.self_attn.v_proj.weight,
+            eqx_model,
+            _copy_weights_cpu(
+                hf_model,
+                "self_attn.v_proj",
+                eqx_model.model.layers.self_attn.v_proj.weight,
+                param_dtype,
+            ),
+        )
 
-    eqx_model = eqx.tree_at(
-        lambda m: m.model.layers.self_attn.v_proj.weight,
-        eqx_model,
-        _copy_weights(
-            "self_attn.v_proj",
-            eqx_model.model.layers.self_attn.v_proj.weight,
-            PS(("fsdp", "mp")),
-            param_dtype,
-        ),
-    )
+        eqx_model = eqx.tree_at(
+            lambda m: m.model.layers.self_attn.o_proj.weight,
+            eqx_model,
+            _copy_weights_cpu(
+                hf_model,
+                "self_attn.o_proj",
+                eqx_model.model.layers.self_attn.o_proj.weight,
+                param_dtype,
+            ),
+        )
 
-    eqx_model = eqx.tree_at(
-        lambda m: m.model.layers.self_attn.o_proj.weight,
-        eqx_model,
-        _copy_weights(
-            "self_attn.o_proj",
-            eqx_model.model.layers.self_attn.o_proj.weight,
-            PS(("mp", "fsdp")),
-            param_dtype,
-        ),
-    )
+        # MLP weights
+        eqx_model = eqx.tree_at(
+            lambda m: m.model.layers.mlp.gate_proj.weight,
+            eqx_model,
+            _copy_weights_cpu(
+                hf_model,
+                "mlp.gate_proj",
+                eqx_model.model.layers.mlp.gate_proj.weight,
+                param_dtype,
+            ),
+        )
 
-    # MLP weights
-    eqx_model = eqx.tree_at(
-        lambda m: m.model.layers.mlp.gate_proj.weight,
-        eqx_model,
-        _copy_weights(
-            "mlp.gate_proj",
-            eqx_model.model.layers.mlp.gate_proj.weight,
-            PS(("fsdp", "mp")),
-            param_dtype,
-        ),
-    )
+        eqx_model = eqx.tree_at(
+            lambda m: m.model.layers.mlp.up_proj.weight,
+            eqx_model,
+            _copy_weights_cpu(
+                hf_model,
+                "mlp.up_proj",
+                eqx_model.model.layers.mlp.up_proj.weight,
+                param_dtype,
+            ),
+        )
 
-    eqx_model = eqx.tree_at(
-        lambda m: m.model.layers.mlp.up_proj.weight,
-        eqx_model,
-        _copy_weights(
-            "mlp.up_proj",
-            eqx_model.model.layers.mlp.up_proj.weight,
-            PS(("fsdp", "mp")),
-            param_dtype,
-        ),
-    )
+        eqx_model = eqx.tree_at(
+            lambda m: m.model.layers.mlp.down_proj.weight,
+            eqx_model,
+            _copy_weights_cpu(
+                hf_model,
+                "mlp.down_proj",
+                eqx_model.model.layers.mlp.down_proj.weight,
+                param_dtype,
+            ),
+        )
 
-    eqx_model = eqx.tree_at(
-        lambda m: m.model.layers.mlp.down_proj.weight,
-        eqx_model,
-        _copy_weights(
-            "mlp.down_proj",
-            eqx_model.model.layers.mlp.down_proj.weight,
-            PS(("mp", "fsdp")),
-            param_dtype,
-        ),
-    )
+        # Layer norms (using float32)
+        eqx_model = eqx.tree_at(
+            lambda m: m.model.layers.input_layernorm.weight,
+            eqx_model,
+            _copy_weights_cpu(
+                hf_model,
+                "input_layernorm",
+                eqx_model.model.layers.input_layernorm.weight,
+                jnp.float32,
+            ),
+        )
 
-    # Layer norms (using float32)
-    eqx_model = eqx.tree_at(
-        lambda m: m.model.layers.input_layernorm.weight,
-        eqx_model,
-        _copy_weights(
-            "input_layernorm",
-            eqx_model.model.layers.input_layernorm.weight,
-            PS(),
-            jnp.float32,
-        ),
-    )
+        eqx_model = eqx.tree_at(
+            lambda m: m.model.layers.post_attention_layernorm.weight,
+            eqx_model,
+            _copy_weights_cpu(
+                hf_model,
+                "post_attention_layernorm",
+                eqx_model.model.layers.post_attention_layernorm.weight,
+                jnp.float32,
+            ),
+        )
 
-    eqx_model = eqx.tree_at(
-        lambda m: m.model.layers.post_attention_layernorm.weight,
-        eqx_model,
-        _copy_weights(
-            "post_attention_layernorm",
-            eqx_model.model.layers.post_attention_layernorm.weight,
-            PS(),
-            jnp.float32,
-        ),
-    )
+    # Now transfer to TPU with appropriate sharding
+    def transfer_to_tpu(tensor, partition_spec):
+        sharding = NamedSharding(mesh, partition_spec)
+        return jax.device_put(tensor, sharding)
+
+    # Transfer model parameters to TPU with appropriate sharding
+    def transfer_arrays(tree):
+        arrays, static = eqx.partition(tree, eqx.is_array)
+        
+        # Define sharding specs based on parameter type/shape
+        def get_partition_spec(path, arr):
+            if "embed_tokens.weight" in path:
+                return PS(("mp", "fsdp"))
+            elif "lm_head.weight" in path:
+                return PS(("fsdp", "mp"))
+            elif "norm.weight" in path:
+                return PS()
+            elif "self_attn" in path and "proj.weight" in path:
+                if "o_proj" in path:
+                    return PS(("mp", "fsdp"))
+                else:
+                    return PS(("fsdp", "mp"))
+            elif "mlp" in path and "proj.weight" in path:
+                if "down_proj" in path:
+                    return PS(("mp", "fsdp"))
+                else:
+                    return PS(("fsdp", "mp"))
+            else:
+                return PS()  # default no partitioning
+
+        # Transfer each array with its appropriate sharding
+        arrays = named_tree_map(
+            lambda path, x: transfer_to_tpu(x, get_partition_spec(path, x)),
+            arrays,
+            sep="."
+        )
+        
+        return eqx.combine(arrays, static)
+
+    # Transfer the entire model to TPU
+    eqx_model = transfer_arrays(eqx_model)
+
+    # Clean up HF model to free memory
+    del hf_model
+    jax.clear_caches()
 
     return eqx_model, model_config
 
