@@ -317,39 +317,39 @@ class Trainer:
                 prev_loss = loss
                 prev_accuracy = accuracy
 
-                if (
-                    step == 0
-                    or (step + 1) % self.trainer_config.eval_interval == 0
-                ):
-                    prev_val_loss, prev_val_accuracy = self.evaluate(
-                        model_params=model_params,
-                        model_static=model_static,
-                        max_eval_steps=self.trainer_config.eval_steps,
-                    )
+                # if (
+                #     step == 0
+                #     or (step + 1) % self.trainer_config.eval_interval == 0
+                # ):
+                #     prev_val_loss, prev_val_accuracy = self.evaluate(
+                #         model_params=model_params,
+                #         model_static=model_static,
+                #         max_eval_steps=self.trainer_config.eval_steps,
+                #     )
 
-                if self.checkpointer and (
-                    (step + 1) % self.checkpointer.config.save_interval_steps
-                    == 0
-                ):
-                    self.checkpointer.save_checkpoint(
-                        model=eqx.combine(model_params, model_static),
-                        model_config=self.model_config,
-                        step=step + 1,
-                    )
+                # if self.checkpointer and (
+                #     (step + 1) % self.checkpointer.config.save_interval_steps
+                #     == 0
+                # ):
+                #     self.checkpointer.save_checkpoint(
+                #         model=eqx.combine(model_params, model_static),
+                #         model_config=self.model_config,
+                #         step=step + 1,
+                #     )
 
         # Update the model with the trained parameters
         self.model = eqx.combine(model_params, model_static)
         print("Training completed!")
 
         # Save final checkpoint
-        if self.checkpointer:
-            self.checkpointer.save_checkpoint(
-                model=self.model,
-                model_config=self.model_config,
-                step=step + 1,
-            )
-            self.checkpointer.wait_until_finished()
-            print("Final checkpoint saved at:", self.checkpointer.directory)
+        # if self.checkpointer:
+        #     self.checkpointer.save_checkpoint(
+        #         model=self.model,
+        #         model_config=self.model_config,
+        #         step=step + 1,
+        #     )
+        #     self.checkpointer.wait_until_finished()
+        #     print("Final checkpoint saved at:", self.checkpointer.directory)
 
     def evaluate(self, model_params, model_static, max_eval_steps=None):
         """Run evaluation on the validation dataset.
@@ -453,7 +453,30 @@ def _make_lora_params_filter_spec(model):
         model,
         is_leaf=eqx.is_array,
     )
+    
+# def _cross_entropy_loss_and_accuracy(logits, tokens, mask=None):
+#     if mask is None:
+#         mask = jnp.ones(tokens.shape[:2])
+#     mask = mask.astype(jnp.float32)
 
+#     valid_text_length = jnp.maximum(jnp.sum(mask, axis=-1), 1e-10)
+
+#     logits = logits.astype(jnp.float32)  # for numerical stability
+#     token_log_prob = jnp.squeeze(
+#         jnp.take_along_axis(
+#             jax.nn.log_softmax(logits, axis=-1),
+#             jnp.expand_dims(tokens, -1),
+#             axis=-1,
+#         ),
+#         -1,
+#     )
+#     token_log_prob = jnp.where(mask > 0.0, token_log_prob, jnp.array(0.0))
+#     loss = -jnp.mean(jnp.sum(token_log_prob, axis=-1) / valid_text_length)
+#     correct = jnp.where(
+#         mask > 0.0, jnp.argmax(logits, axis=-1) == tokens, jnp.array(False)
+#     )
+#     accuracy = jnp.mean(jnp.sum(correct, axis=-1) / valid_text_length)
+#     return loss, accuracy
 
 def _cross_entropy_loss_and_accuracy(logits, tokens, mask=None):
     if mask is None:
