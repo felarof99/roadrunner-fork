@@ -553,6 +553,7 @@ def load_llama_from_hf_unoptimized(
         param_dtype=param_dtype,
         compute_dtype=compute_dtype,
         key=key,
+        use_optimized_decoder=False,
     )
     torch_to_jax_float32 = _make_torch_to_jax(dtype=jnp.float32, mesh=mesh)
     torch_to_jax = _make_torch_to_jax(dtype=param_dtype, mesh=mesh)
