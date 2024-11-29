@@ -69,7 +69,7 @@ trainer_config = TrainerConfig(
     num_epochs=1,
     num_steps=5,  # set to None to run through the entire dataset
     num_tpus=jax.device_count(),
-    mesh_shape=(1, 1, 4),  # (batch, fsdp, mp)
+    mesh_shape=(1, 4, 1),  # (batch, fsdp, mp)
     # lora configuration
     lora_rank=16,
     use_lora=False,

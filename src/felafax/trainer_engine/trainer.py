@@ -238,11 +238,13 @@ class Trainer:
         return loss, accuracy
 
     def train(self):
-        model_params, model_static = eqx.partition(self.model, eqx.is_array)
-        optimizer_state = self.opt_state
         max_steps = self.trainer_config.num_steps or float("inf")
+        model_params, model_static = eqx.partition(self.model, eqx.is_array)
+        optimizer_state = jax.device_put(
+            self.opt_state, NamedSharding(self.mesh, PS())
+        )
 
-        prev_step = 0
+        prev_step = -1
         loss, accuracy = 0.0, 0.0
         val_loss, val_accuracy = 0.0, 0.0
         prev_loss, prev_accuracy = 0.0, 0.0
@@ -257,10 +259,7 @@ class Trainer:
                 if step >= max_steps:
                     break
 
-                if (
-                    step == 1
-                    or (step + 1) % self.trainer_config.log_interval == 0
-                ):
+                if prev_step % self.trainer_config.log_interval == 0:
                     # Printing metrics of previous step to avoid disrupting XLA pipelining
                     print(
                         f"Step {prev_step} | "
@@ -269,14 +268,9 @@ class Trainer:
                         # f"Next Token Prediction Accuracy (train, val): {prev_accuracy:.2%}, {prev_val_accuracy:.2%}"
                     )
 
-                pass
-
                 batch = _preprocess_batch(batch)
                 batch = host_local_array_to_global_array(
                     batch, self.mesh, PS("batch")
-                )
-                optimizer_state = jax.device_put(
-                    optimizer_state, NamedSharding(self.mesh, PS())
                 )
 
                 (
@@ -291,8 +285,7 @@ class Trainer:
                 )
 
                 if self.trainer_config.eval_interval > 0 and (
-                    step == 0  # Evaluate on first step to get baseline
-                    or (step + 1) % self.trainer_config.eval_interval == 0
+                    step % self.trainer_config.eval_interval == 0
                 ):
                     val_loss, val_accuracy = self.evaluate(
                         model_params=model_params,
@@ -314,7 +307,7 @@ class Trainer:
                 # Update previous step metrics, which will be used for logging.
                 prev_step = step
                 prev_loss, prev_accuracy = loss, accuracy
-                prev_val_loss, prev_val_accuracy = val_loss, val_accuracy 
+                prev_val_loss, prev_val_accuracy = val_loss, val_accuracy
 
         # Update the model with the trained parameters
         self.model = eqx.combine(model_params, model_static)
