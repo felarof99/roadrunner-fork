@@ -18,7 +18,7 @@ from src.felafax.trainer_engine import utils
 
 
 load_dotenv()
-TEST_MODE = False
+TEST_MODE = True
 HF_TOKEN = os.getenv("HF_TOKEN") or input(
     "Please enter your HuggingFace token: "
 )
@@ -46,7 +46,7 @@ dataset_config = DatasetConfig(
     train_test_split=0.15,
     # Setting max_examples limits the number of examples in the dataset.
     # This is useful for testing the pipeline without running the entire dataset.
-    max_examples=100 if TEST_MODE else None,
+    max_examples=256 if TEST_MODE else None,
     ignore_index=-100,
     pad_id=0,
     seed=42,

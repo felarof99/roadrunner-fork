@@ -165,7 +165,7 @@ class Trainer:
         )
         self.opt_state = self.optimizer.init(optimizer_params)
 
-    @functools.partial(jax.jit, static_argnames=("self", "model_static"))
+    # @functools.partial(jax.jit, static_argnames=("self", "model_static"))
     def forward(self, model_params, model_static, batch):
         model = eqx.combine(model_params, model_static)
         input_ids = batch["input_ids"]
@@ -189,9 +189,9 @@ class Trainer:
         )
         return loss, accuracy
 
-    @functools.partial(
-        jax.jit, static_argnames=("self", "model_static", "optimizer")
-    )
+    # @functools.partial(
+    #     jax.jit, static_argnames=("self", "model_static", "optimizer")
+    # )
     def training_step(
         self, model_params, model_static, optimizer, optimizer_state, batch
     ):
@@ -230,11 +230,11 @@ class Trainer:
 
         return loss, (accuracy, model_params, optimizer_state)
 
-    @functools.partial(
-        jax.jit,
-        static_argnames=("self", "model_static"),
-        donate_argnames=("batch",),
-    )
+    # @functools.partial(
+    #     jax.jit,
+    #     static_argnames=("self", "model_static"),
+    #     donate_argnames=("batch",),
+    # )
     def validation_step(self, model_params, model_static, batch):
         model = eqx.combine(model_params, model_static)
         model = eqx.nn.inference_mode(model)
@@ -453,7 +453,56 @@ def _make_lora_params_filter_spec(model):
         model,
         is_leaf=eqx.is_array,
     )
+
+def _cross_entropy_loss_and_accuracy(logits, tokens, mask=None):
+    # Compute log probabilities for each token in vocabulary
+    # logits shape: (batch_size, seq_len, vocab_size)
+    # log_probs shape: (batch_size, seq_len, vocab_size)
+    log_probs = jax.nn.log_softmax(logits, axis=-1)
     
+    # Extract the log probability of each correct token using array indexing
+    # Create indices for batch and sequence dimensions
+    batch_size, seq_len, vocab_size = logits.shape
+    batch_idx = jnp.arange(batch_size)[:, None]  # Shape: (batch_size, 1)
+    seq_idx = jnp.arange(seq_len)[None, :]      # Shape: (1, seq_len)
+    
+    # Use advanced indexing to get log probs of correct tokens
+    # tokens shape: (batch_size, seq_len)
+    # token_log_probs shape: (batch_size, seq_len)
+    token_log_probs = log_probs[batch_idx, seq_idx, tokens]
+    
+    # Average negative log probability is our loss
+    # First sum over sequence length, then average over batch
+    loss = -jnp.mean(jnp.sum(token_log_probs, axis=-1))
+    
+    # Compute accuracy: compare predicted tokens with correct tokens
+    # predictions shape: (batch_size, seq_len)
+    predictions = jnp.argmax(logits, axis=-1)
+    accuracy = jnp.mean(predictions == tokens)
+    
+    return loss, accuracy
+
+# def _cross_entropy_loss_and_accuracy(logits, tokens, mask=None):
+#     # Reshape logits and tokens to 2D if needed
+#     batch_size, seq_len, vocab_size = logits.shape
+#     logits_2d = logits.reshape(-1, vocab_size)  # (batch_size * seq_len, vocab_size)
+#     tokens_1d = tokens.reshape(-1)  # (batch_size * seq_len)
+
+#     # Calculate loss using optax
+#     token_losses = optax.softmax_cross_entropy_with_integer_labels(
+#         logits_2d, tokens_1d
+#     )
+    
+#     loss = jnp.mean(token_losses)
+
+#     # Calculate accuracy
+#     predictions = jnp.argmax(logits_2d, axis=-1)
+#     correct = (predictions == tokens_1d)
+    
+#     accuracy = jnp.mean(correct)
+
+#     return loss, accuracy
+ 
 # def _cross_entropy_loss_and_accuracy(logits, tokens, mask=None):
 #     if mask is None:
 #         mask = jnp.ones(tokens.shape[:2])
@@ -478,28 +527,28 @@ def _make_lora_params_filter_spec(model):
 #     accuracy = jnp.mean(jnp.sum(correct, axis=-1) / valid_text_length)
 #     return loss, accuracy
 
-def _cross_entropy_loss_and_accuracy(logits, tokens, mask=None):
-    if mask is None:
-        mask = jnp.ones(tokens.shape[:2])
-    mask = mask.astype(jnp.float32)
+# def _cross_entropy_loss_and_accuracy(logits, tokens, mask=None):
+#     if mask is None:
+#         mask = jnp.ones(tokens.shape[:2])
+#     mask = mask.astype(jnp.float32)
 
-    valid_text_length = jnp.maximum(jnp.sum(mask, axis=-1), 1e-10)
+#     valid_text_length = jnp.maximum(jnp.sum(mask, axis=-1), 1e-10)
 
-    logits = logits.astype(jnp.float32)  # for numerical stability
+#     logits = logits.astype(jnp.float32)  # for numerical stability
 
-    logits_flat = logits.reshape(-1, logits.shape[-1])
-    tokens_flat = tokens.flatten()
-    mask_flat = mask.flatten()
+#     logits_flat = logits.reshape(-1, logits.shape[-1])
+#     tokens_flat = tokens.flatten()
+#     mask_flat = mask.flatten()
 
-    log_probs_flat = jax.nn.log_softmax(logits_flat, axis=-1)
-    token_log_probs = log_probs_flat[jnp.arange(log_probs_flat.shape[0]), tokens_flat]
-    token_log_probs = token_log_probs * mask_flat
+#     log_probs_flat = jax.nn.log_softmax(logits_flat, axis=-1)
+#     token_log_probs = log_probs_flat[jnp.arange(log_probs_flat.shape[0]), tokens_flat]
+#     token_log_probs = token_log_probs * mask_flat
 
-    token_log_probs = token_log_probs.reshape(tokens.shape)
-    loss = -jnp.mean(jnp.sum(token_log_probs, axis=-1) / valid_text_length)
+#     token_log_probs = token_log_probs.reshape(tokens.shape)
+#     loss = -jnp.mean(jnp.sum(token_log_probs, axis=-1) / valid_text_length)
 
-    predictions = jnp.argmax(logits, axis=-1)
-    correct = (predictions == tokens) * mask
-    accuracy = jnp.mean(jnp.sum(correct, axis=-1) / valid_text_length)
+#     predictions = jnp.argmax(logits, axis=-1)
+#     correct = (predictions == tokens) * mask
+#     accuracy = jnp.mean(jnp.sum(correct, axis=-1) / valid_text_length)
 
-    return loss, accuracy
+#     return loss, accuracy

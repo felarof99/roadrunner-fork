@@ -634,7 +634,7 @@ class LlamaModel(eqx.Module):
                 hidden_states, _ = jax.lax.scan(f, hidden_states, dynamic_layers)
             else:
                 for layer in self.layers:
-                    hidden_states = eqx.filter_checkpoint(layer, policy=policy)(
+                    hidden_states = layer(
                         hidden_states, attention_mask, position_ids
                     ).astype(self.compute_dtype)
 
