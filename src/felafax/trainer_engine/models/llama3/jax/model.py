@@ -197,6 +197,8 @@ class LlamaLinear(eqx.Module):
 class LlamaRotaryEmbedding(eqx.Module):
     inv_freq: jnp.ndarray
     max_seq_len_cached: int
+    num_heads: int
+    head_dim: int
     param_dtype: Any
     compute_dtype: Any
 
@@ -206,36 +208,39 @@ class LlamaRotaryEmbedding(eqx.Module):
         self.param_dtype = param_dtype
         self.compute_dtype = compute_dtype
 
-        dim = config.hidden_size // config.num_attention_heads
+        self.num_heads = config.num_attention_heads
+        self.head_dim = config.hidden_size // self.num_heads
         self.max_seq_len_cached = config.max_position_embeddings
+
         inv_freq = 1.0 / (
             config.rope_theta
-            ** (jnp.arange(0, dim, 2).astype(jnp.float32) / dim)
+            ** (jnp.arange(0, self.head_dim, 2).astype(jnp.float32) / self.head_dim)
         )
-        # TODO(mixed_precision): always using float32 for inv_freq.
-        self.inv_freq = inv_freq.astype(jnp.float32)
+        self.inv_freq = inv_freq.astype(self.compute_dtype)
 
-    def __call__(self, x, position_ids):
-        # TODO(mixed_precision): check if x should be retained as float32 for rotary embeddings.
-        x = x.astype(jnp.float32)
+    def __call__(self, position_ids):
+        batch_size = position_ids.shape[0]
         seq_len = position_ids.shape[1]
-        t = position_ids.astype(jnp.float32)
-        inv_freq = self.inv_freq
 
-        # Reshape t to match the expected input shape
-        t = t.reshape(-1, seq_len, 1)  # Shape: (batch_size, seq_len, 1)
+        t = position_ids.astype(self.compute_dtype)  # Shape: (batch_size, seq_len)
+        
+        # Expand t to match (batch_size, num_heads, seq_len, 1)
+        t = t[:, None, :, None]  # Shape: (batch_size, 1, seq_len, 1)
+        t = jnp.tile(t, (1, self.num_heads, 1, 1))  # Shape: (batch_size, num_heads, seq_len, 1)
 
-        # Compute freqs directly without using einsum
-        freqs = (
-            t * inv_freq[None, None, :]
-        )  # Shape: (batch_size, seq_len, dim//2)
+        # Expand inv_freq to match (1, num_heads, 1, head_dim//2)
+        inv_freq = self.inv_freq[None, None, None, :]  # Shape: (1, 1, 1, head_dim//2)
 
-        emb = jnp.concatenate(
-            (freqs, freqs), axis=-1
-        )  # Shape: (batch_size, seq_len, dim)
-        cos = jnp.cos(emb)
-        sin = jnp.sin(emb)
-        return cos.astype(jnp.float32), sin.astype(jnp.float32)
+        # Compute freqs without broadcasting
+        freqs = t * inv_freq  # Shape: (batch_size, num_heads, seq_len, head_dim//2)
+
+        # Concatenate freqs to match head_dim
+        emb = jnp.concatenate([freqs, freqs], axis=-1)  # Shape: (batch_size, num_heads, seq_len, head_dim)
+
+        # Compute cos and sin
+        cos = jnp.cos(emb).astype(self.compute_dtype)
+        sin = jnp.sin(emb).astype(self.compute_dtype)
+        return cos, sin
 
 
 class LlamaRMSNorm(eqx.Module):
@@ -378,11 +383,8 @@ class LlamaSdpaAttention(eqx.Module):
             bsz, q_len, self.num_key_value_heads, self.head_dim
         ).transpose(0, 2, 1, 3)
 
-        cos, sin = self.rotary_emb(value_states, position_ids)
-
-        # Reshape cos and sin to include num_heads dimension
-        cos = cos[:, None, :, :]  # (batch_size, 1, seq_len, head_dim)
-        sin = sin[:, None, :, :]  # (batch_size, 1, seq_len, head_dim)
+        # Generate cos and sin without broadcasting
+        cos, sin = self.rotary_emb(position_ids)
 
         # Apply rotary embeddings
         query_states, key_states = jax_apply_rotary_pos_emb(
@@ -406,27 +408,19 @@ class LlamaSdpaAttention(eqx.Module):
         causal_mask = jnp.tril(jnp.ones((q_len, q_len)))
         causal_mask = causal_mask[None, None, :, :]
 
-        # If attention_mask is provided, use it to override the causal mask
         if attention_mask is not None:
-            # Broadcast attention_mask to the correct shape
             attention_mask = jnp.expand_dims(attention_mask, axis=(1, 2))
-            # Combine causal_mask and attention_mask
             combined_mask = jnp.minimum(causal_mask, attention_mask)
         else:
             combined_mask = causal_mask
 
-        # Apply the combined mask
         attn_weights = jnp.where(combined_mask == 0, float("-inf"), attn_weights)
-
         attn_weights = jax.nn.softmax(attn_weights, axis=-1)
-
         attn_output = jnp.einsum("bhqk,bhkd->bhqd", attn_weights, value_states)
         attn_output = attn_output.transpose(0, 2, 1, 3).reshape(
             bsz, q_len, self.num_heads * self.head_dim
         )
-
         attn_output = self.o_proj(attn_output)
-
         return attn_output.astype(self.compute_dtype)
 
 
