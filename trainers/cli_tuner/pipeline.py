@@ -38,7 +38,7 @@ def main(cfg: PipelineConfig):
     trainer.train()
 
     # Export and upload model
-    trainer.export(export_dir=cfg.export_dir)
+    trainer.save_model(export_dir=cfg.export_dir)
 
     utils.upload_dir_to_hf(
         dir_path=cfg.export_dir,

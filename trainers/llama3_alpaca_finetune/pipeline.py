@@ -130,7 +130,7 @@ trainer.train()
 export_dir = f"{trainer_config.base_dir}/hf_export/"
 
 # Run this to export the model in HF format
-trainer.export(export_dir=export_dir)
+trainer.save_model(export_dir=export_dir)
 
 # Run this to upload the exported model to HF
 utils.upload_dir_to_hf(

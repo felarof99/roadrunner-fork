@@ -81,11 +81,13 @@ class Checkpointer:
             force=True,
         )
 
-    def restore_checkpoint(self) -> Tuple[eqx.Module, LlamaConfig]:
+    def restore_checkpoint(
+        self, step: Optional[int] = None
+    ) -> Tuple[eqx.Module, LlamaConfig]:
         """Restores model checkpoint."""
         # Step 1: Restore the model_config first
         restored_config = self.checkpoint_mgr.restore(
-            step=self.checkpoint_mgr.latest_step(),
+            step=step or self.checkpoint_mgr.latest_step(),
             items=["model_config"],
             args=ocp.args.Composite(
                 model_config=ocp.args.JsonRestore(),
@@ -112,61 +114,20 @@ class Checkpointer:
         model = eqx.combine(model_params, model_static)
         return model, model_config
 
+    def has_checkpoints(self):
+        return len(self.checkpoint_mgr.all_steps()) > 0
+
     def wait_until_finished(self):
         """Wait for any async operations to complete."""
         self.checkpoint_mgr.wait_until_finished()
 
     @property
+    def latest_step(self):
+        return self.checkpoint_mgr.latest_step()
+
+    @property
     def directory(self):
         return self.checkpoint_mgr.directory
-
-
-def load_model(
-    model_name: str, mesh: jax.sharding.Mesh, token: Optional[str] = None
-):
-    """Loads a model from a checkpoint or Hugging Face.
-
-    Args:
-        model_name: Name or path of the model to load
-        token: HuggingFace token for accessing gated models
-    """
-    return load_llama_from_hf(model_name, mesh=mesh, token=token)
-
-
-def load_checkpoint_or_model(
-    model_name: str,
-    mesh: jax.sharding.Mesh,
-    checkpointer: Checkpointer,
-    param_dtype=jnp.float32,
-    compute_dtype=jnp.float32,
-) -> LlamaForCausalLM:
-    """Loads checkpoint from local storage using Orbax or downloads from HF with specified dtypes.
-
-    Args:
-        model_name: Name of HF model (e.g. 'meta-llama/Llama-2-7b') or path to local checkpoint
-        checkpointer: An instance of Checkpointer to manage loading
-        param_dtype: The dtype in which parameters are stored and loaded
-        compute_dtype: The dtype in which computations are performed and outputs are returned
-
-    Returns:
-        tuple: (model, model_config)
-    """
-    has_checkpoints = len(checkpointer.checkpoint_mgr.all_steps()) > 0
-    if has_checkpoints:
-        # Restores the model in whatever dtypes are stored in the checkpoint.
-        model, model_config = checkpointer.restore_checkpoint()
-        print(
-            f"Restored checkpoint from step {checkpointer.checkpoint_mgr.latest_step()}"
-        )
-        return model, model_config
-
-    model, model_config = load_llama_from_hf(
-        model_name,
-        mesh=mesh,
-        param_dtype=param_dtype,
-        compute_dtype=compute_dtype,
-    )
-    return model, model_config
 
 
 def create_llama_config_from_hf_model(hf_model) -> LlamaConfig:
@@ -183,17 +144,6 @@ def create_llama_config_from_hf_model(hf_model) -> LlamaConfig:
         rope_theta=hf_model.config.rope_theta,
         attention_bias=hf_model.config.attention_bias,
     )
-
-
-def _make_torch_to_jax(dtype, mesh):
-    """Creates a closure that converts PyTorch tensors to JAX arrays with sharding annotations."""
-
-    def _torch_to_jax(tensor, sharding_spec):
-        jax_array = jnp.array(tensor.detach().numpy(), dtype=dtype)
-        sharding = NamedSharding(mesh, sharding_spec)
-        return jax.device_put(jax_array, sharding)
-
-    return _torch_to_jax
 
 
 # TODO(refactor): Move load model into models/llama.
@@ -736,3 +686,14 @@ def save_model_to_hf_unoptimized(
     tokenizer.save_pretrained(output_dir)
 
     print(f"Model and tokenizer saved to {output_dir}")
+
+
+def _make_torch_to_jax(dtype, mesh):
+    """Creates a closure that converts PyTorch tensors to JAX arrays with sharding annotations."""
+
+    def _torch_to_jax(tensor, sharding_spec):
+        jax_array = jnp.array(tensor.detach().numpy(), dtype=dtype)
+        sharding = NamedSharding(mesh, sharding_spec)
+        return jax.device_put(jax_array, sharding)
+
+    return _torch_to_jax

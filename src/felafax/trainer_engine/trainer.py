@@ -19,7 +19,6 @@ from .checkpoint import (
     Checkpointer,
     load_llama_from_hf,
     save_model_to_hf,
-    load_checkpoint_or_model,
 )
 from .models.llama3.jax.model import (
     LlamaConfig,
@@ -110,31 +109,10 @@ class Trainer:
             # Use the provided model and model_config
             self.model = model
             self.model_config = model_config
-        elif checkpointer is not None and trainer_config.restore_checkpoint:
-            print("Trying to restore checkpoint...")
-            # Load from checkpoint if checkpointer is provided
-            self.model, self.model_config = load_checkpoint_or_model(
-                model_name=trainer_config.model_name,
-                mesh=self.mesh,
-                checkpointer=checkpointer,
-                param_dtype=jnp.dtype(trainer_config.param_dtype),
-                compute_dtype=jnp.dtype(trainer_config.compute_dtype),
-            )
+        elif self.checkpointer and self.trainer_config.restore_checkpoint:
+            self.model, self.model_config = self.load_checkpoint()
         else:
-            print("Loading model from HuggingFace...")
-            # Load the model and model_config from HuggingFace
-
-            self.model, self.model_config = load_llama_from_hf(
-                model_name=trainer_config.model_name,
-                mesh=self.mesh,
-                token=trainer_config.hf_token,
-                lora_rank=self.trainer_config.lora_rank
-                if self.trainer_config.use_lora
-                else 0,
-                param_dtype=jnp.dtype(trainer_config.param_dtype),
-                compute_dtype=jnp.dtype(trainer_config.compute_dtype),
-                use_optimized_decoder=trainer_config.use_optimized_decoder,
-            )
+            self.model, self.model_config = self.load_model()
 
         model_params, model_static = eqx.partition(self.model, eqx.is_array)
 
@@ -265,6 +243,8 @@ class Trainer:
         max_steps = self.trainer_config.num_steps or float("inf")
 
         prev_step = 0
+        loss, accuracy = 0.0, 0.0
+        val_loss, val_accuracy = 0.0, 0.0
         prev_loss, prev_accuracy = 0.0, 0.0
         prev_val_loss, prev_val_accuracy = 0.0, 0.0
 
@@ -311,7 +291,8 @@ class Trainer:
                 )
 
                 if self.trainer_config.eval_interval > 0 and (
-                    (step + 1) % self.trainer_config.eval_interval == 0
+                    step == 0  # Evaluate on first step to get baseline
+                    or (step + 1) % self.trainer_config.eval_interval == 0
                 ):
                     val_loss, val_accuracy = self.evaluate(
                         model_params=model_params,
@@ -333,7 +314,7 @@ class Trainer:
                 # Update previous step metrics, which will be used for logging.
                 prev_step = step
                 prev_loss, prev_accuracy = loss, accuracy
-                prev_val_loss, prev_val_accuracy = val_loss, val_accuracy
+                prev_val_loss, prev_val_accuracy = val_loss, val_accuracy 
 
         # Update the model with the trained parameters
         self.model = eqx.combine(model_params, model_static)
@@ -386,6 +367,24 @@ class Trainer:
             jnp.mean(jnp.array(val_accuracies)),
         )
 
+    def load_checkpoint(
+        self, step: Optional[int] = None, wait_until_finished: bool = False
+    ):
+        if not self.checkpointer:
+            return
+        if not self.checkpointer.has_checkpoints():
+            raise ValueError("No checkpoints found to restore from.")
+
+        step = step or self.checkpointer.latest_step
+
+        # Restores the model in whatever dtypes are stored in the checkpoint.
+        model, model_config = self.checkpointer.restore_checkpoint(step)
+        if wait_until_finished:
+            self.checkpointer.wait_until_finished()
+
+        print(f"Restored checkpoint from step {step}")
+        return model, model_config
+
     def save_checkpoint(
         self,
         step: int,
@@ -416,7 +415,21 @@ class Trainer:
         if wait_until_finished:
             self.checkpointer.wait_until_finished()
 
-    def export(self, export_dir: Optional[str] = None):
+    def load_model(self) -> Tuple[eqx.Module, LlamaConfig]:
+        print("Loading model from HuggingFace...")
+        return load_llama_from_hf(
+            model_name=self.trainer_config.model_name,
+            mesh=self.mesh,
+            token=self.trainer_config.hf_token,
+            lora_rank=self.trainer_config.lora_rank
+            if self.trainer_config.use_lora
+            else 0,
+            param_dtype=jnp.dtype(self.trainer_config.param_dtype),
+            compute_dtype=jnp.dtype(self.trainer_config.compute_dtype),
+            use_optimized_decoder=self.trainer_config.use_optimized_decoder,
+        )
+
+    def save_model(self, export_dir: Optional[str] = None) -> str:
         # After training, convert and save the model in Hugging Face format
         if self.trainer_config.use_lora:
             self.model = _merge_lora_params(self.model)
@@ -432,6 +445,7 @@ class Trainer:
             use_optimized_decoder=self.trainer_config.use_optimized_decoder,
         )
         print("Hugging Face model saved at:", export_dir)
+        return export_dir
 
 
 def _merge_lora_params(model):

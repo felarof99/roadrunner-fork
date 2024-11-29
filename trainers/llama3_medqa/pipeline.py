@@ -67,20 +67,20 @@ trainer_config = TrainerConfig(
     compute_dtype="bfloat16",
     # Training configuration
     num_epochs=1,
-    num_steps=100,  # set to None to run through the entire dataset
+    num_steps=5,  # set to None to run through the entire dataset
     num_tpus=jax.device_count(),
     mesh_shape=(1, 1, 4),  # (batch, fsdp, mp)
     # lora configuration
     lora_rank=16,
     use_lora=False,
-    learning_rate=1e-3,
+    learning_rate=1e-5,
     # Environment configuration
     base_dir=BASE_DIR,
     hf_token=HF_TOKEN,
     # Logging configuration
-    log_interval=5,
+    log_interval=1,
     eval_interval=5,
-    eval_steps=10,
+    eval_steps=5,
     # Restore checkpoint
     restore_checkpoint=False,
 )
@@ -105,7 +105,7 @@ trainer = Trainer(
 )
 
 # Run training
-# trainer.train()
+trainer.train()
 
 trainer.save_checkpoint(step=0, wait_until_finished=True)
 
