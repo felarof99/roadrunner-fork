@@ -8,6 +8,14 @@ from transformers import AutoModelForCausalLM, AutoConfig, AutoTokenizer, defaul
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
+from transformers import (
+    AutoModelForCausalLM,
+    AutoConfig,
+    AutoTokenizer,
+    default_data_collator,
+)
+from peft import LoraConfig, TaskType, get_peft_model
+
 
 def get_mesh(num_tpus: int, mesh_shape: Optional[Tuple[int, int, int]] = None):
     if mesh_shape is None:
@@ -61,12 +69,55 @@ class TrainerConfig:
     use_optimized_decoder: bool = True
 
 
+# Select a supported model from above list to use!
+MODEL_NAME = "meta-llama/Llama-3.2-1B-Instruct"
+HUGGINGFACE_TOKEN = input(
+    "Please provide your HUGGINGFACE_TOKEN: "
+)  # YOUR_HF_TOKEN
+
+def apply_lora(*, model, lora_rank=None, lora_alpha=None, lora_dropout=None):
+    """Applies LoRA configuration to the model."""
+    peft_config = LoraConfig(
+        task_type=TaskType.CAUSAL_LM,
+        inference_mode=False,
+        r=8 if not lora_rank else lora_rank,
+        lora_alpha=32 if not lora_alpha else lora_alpha,
+        lora_dropout=0.1 if not lora_dropout else lora_dropout,
+    )
+    model = get_peft_model(model, peft_config)
+    model.print_trainable_parameters()
+    return model
+
+def init_model(*, model_name, hugging_face_token):
+    """Downloads and initializes the model."""
+    config = AutoConfig.from_pretrained(model_name, token=hugging_face_token)
+
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_name, token=hugging_face_token
+    )
+
+    if not tokenizer.pad_token:
+        tokenizer.pad_token = tokenizer.eos_token
+        config.pad_token_id = tokenizer.pad_token_id
+
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name, token=hugging_face_token, low_cpu_mem_usage=True
+    )
+
+    # model = apply_lora(
+    #     model=model,
+    #     lora_rank=TRAINER_CONFIG["lora_rank"],
+    #     lora_alpha=TRAINER_CONFIG["lora_alpha"],
+    #     lora_dropout=TRAINER_CONFIG["lora_dropout"],
+    # )
+
+    return model, tokenizer
 
 
-# def main():
-#     t = torch.randn(2, 2, device=xm.xla_device())
-#     print(t.device)
-#     print(t)
+def main():
+    t = torch.randn(2, 2, device=xm.xla_device())
+    print(t.device)
+    print(t)
     
     
 
