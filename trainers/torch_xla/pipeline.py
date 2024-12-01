@@ -52,11 +52,11 @@ class TrainerConfig:
 
     # Training configuration
     num_epochs: int = 1
-    num_steps: Optional[int] = 10  # set to None to run through the entire dataset
+    num_steps: Optional[int] = 10
     num_tpus: int = 2
     mesh_shape: Optional[Tuple[int, int, int]] = None
 
-    learning_rate: float = 1e-3
+    learning_rate: float = 1e-4
 
     # lora configuration
     lora_rank: int = 4  # Rank for lora matrices
@@ -148,7 +148,7 @@ def main():
     # device_ids = np.array(range(num_devices))
     # mesh = Mesh(device_ids, mesh_shape, ("dp", "fsdp", "mp"))
 
-    optimizer = torch.optim.Adam(
+    optimizer = torch.optim.SGD(
         model.parameters(), lr=trainer_config.learning_rate
     )
 
@@ -164,8 +164,10 @@ def main():
             if step > max_steps:
                 break
             if (prev_step + 1) % trainer_config.log_interval == 0:
-                xm.master_print(f"Step {prev_step} loss: {prev_loss}")
-                
+                xm.master_print(
+                    f"Step {prev_step} loss: {prev_loss}"
+                )
+
             optimizer.zero_grad()
             input_ids, attention_mask, labels = (
                 batch["input_ids"].to(device),
@@ -174,17 +176,20 @@ def main():
                 else None,
                 batch["labels"].to(device),
             )
+
             output = model(
                 input_ids=input_ids, attention_mask=attention_mask, labels=labels
             )
             loss = output.loss
             loss.backward()
             optimizer.step()
+            xm.mark_step()
+
             prev_step = step
-            prev_loss = loss
+            prev_loss = loss.detach().cpu().item()
             step = step + 1
-
-
+            
+    print(f"Training complete! Final loss: {loss.detach().to('cpu')}")
 
 
 if __name__ == "__main__":
