@@ -61,10 +61,12 @@ class TrainerConfig:
     use_optimized_decoder: bool = True
 
 
-def main():
-    t = torch.randn(2, 2, device=xm.xla_device())
-    print(t.device)
-    print(t)
+
+
+# def main():
+#     t = torch.randn(2, 2, device=xm.xla_device())
+#     print(t.device)
+#     print(t)
     
     
 
