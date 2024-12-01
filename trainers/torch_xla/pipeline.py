@@ -1,10 +1,12 @@
-
-    
-
 import torch
 import torch_xla
 import torch_xla.core.xla_model as xm
-from transformers import AutoModelForCausalLM, AutoConfig, AutoTokenizer, default_data_collator
+from transformers import (
+    AutoModelForCausalLM,
+    AutoConfig,
+    AutoTokenizer,
+    default_data_collator,
+)
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
@@ -15,6 +17,11 @@ from transformers import (
     default_data_collator,
 )
 from peft import LoraConfig, TaskType, get_peft_model
+from .dataset import create_med_qa_loaders
+
+from src.felafax.trainer_engine.data.data import (
+    DatasetConfig,
+)
 
 
 def get_mesh(num_tpus: int, mesh_shape: Optional[Tuple[int, int, int]] = None):
@@ -32,6 +39,7 @@ def get_mesh(num_tpus: int, mesh_shape: Optional[Tuple[int, int, int]] = None):
     device_mesh = mesh_utils.create_device_mesh(mesh_shape)
     mesh = jax.sharding.Mesh(device_mesh, axis_names=("batch", "fsdp", "mp"))
     return mesh
+
 
 @dataclass
 class TrainerConfig:
@@ -75,6 +83,7 @@ HUGGINGFACE_TOKEN = input(
     "Please provide your HUGGINGFACE_TOKEN: "
 )  # YOUR_HF_TOKEN
 
+
 def apply_lora(*, model, lora_rank=None, lora_alpha=None, lora_dropout=None):
     """Applies LoRA configuration to the model."""
     peft_config = LoraConfig(
@@ -87,6 +96,7 @@ def apply_lora(*, model, lora_rank=None, lora_alpha=None, lora_dropout=None):
     model = get_peft_model(model, peft_config)
     model.print_trainable_parameters()
     return model
+
 
 def init_model(*, model_name, hugging_face_token):
     """Downloads and initializes the model."""
@@ -115,12 +125,38 @@ def init_model(*, model_name, hugging_face_token):
 
 
 def main():
+    model, tokenizer = init_model(
+        model_name=MODEL_NAME, hugging_face_token=HUGGINGFACE_TOKEN
+    )
+    
+    # Create dataset configuration for MedQA
+    medqa_config = DatasetConfig(
+        # Data loading parameters
+        data_source="ngram/medchat-qa",
+        max_examples=None,
+        # Batching parameters
+        batch_size=8,
+        max_seq_length=4096,
+        num_workers=8,
+        ignore_index=-100,
+        mask_prompt=False,
+        pad_id=0,
+    )
+    train_dataloader, val_dataloader = create_med_qa_loaders(
+        config=medqa_config, tokenizer=tokenizer
+    )
+    # Print first batch from train_dataloader
+    for batch in train_dataloader:
+        print("Sample batch from train_dataloader:")
+        for key, value in batch.items():
+            print(f"{key}: {value.shape}")
+            print(f"Content: {value}")
+        break  # Only print first batch
+
     t = torch.randn(2, 2, device=xm.xla_device())
     print(t.device)
     print(t)
-    
-    
+
 
 if __name__ == "__main__":
     main()
-    
