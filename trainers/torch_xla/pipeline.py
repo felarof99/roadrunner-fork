@@ -1,6 +1,5 @@
 import torch
 import torch_xla
-import torch_xla.core.xla_model as xm
 from transformers import (
     AutoModelForCausalLM,
     AutoConfig,
@@ -18,10 +17,19 @@ from transformers import (
 )
 from peft import LoraConfig, TaskType, get_peft_model
 from .dataset import create_med_qa_loaders
+from .model import partition_model
 
 from src.felafax.trainer_engine.data.data import (
     DatasetConfig,
 )
+
+import numpy as np
+import torch_xla.core.xla_model as xm
+import torch_xla.runtime as xr
+xr.use_spmd()
+
+import torch_xla.experimental.xla_sharding as xs
+from torch_xla.experimental.xla_sharding import Mesh
 
 
 def get_mesh(num_tpus: int, mesh_shape: Optional[Tuple[int, int, int]] = None):
@@ -142,12 +150,14 @@ def main():
     device = xm.xla_device()
     model = model.to(device)
 
-    # # Create a mesh for the model partitioning.
-    # num_devices = xr.global_runtime_device_count()
-    # mesh_shape = (1, num_devices, 1)
-    # device_ids = np.array(range(num_devices))
-    # mesh = Mesh(device_ids, mesh_shape, ("dp", "fsdp", "mp"))
+    # Create a mesh for the model partitioning.
+    num_devices = xr.global_runtime_device_count()
+    mesh_shape = (1, num_devices, 1)
+    device_ids = np.array(range(num_devices))
+    mesh = Mesh(device_ids, mesh_shape, ("dp", "fsdp", "mp"))
 
+    partition_model(model=model, mesh=mesh)
+                        
     optimizer = torch.optim.SGD(
         model.parameters(), lr=trainer_config.learning_rate
     )
