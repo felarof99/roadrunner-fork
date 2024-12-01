@@ -52,7 +52,7 @@ class TrainerConfig:
 
     # Training configuration
     num_epochs: int = 1
-    num_steps: Optional[int] = None
+    num_steps: Optional[int] = 10  # set to None to run through the entire dataset
     num_tpus: int = 2
     mesh_shape: Optional[Tuple[int, int, int]] = None
 
@@ -63,25 +63,17 @@ class TrainerConfig:
     use_lora: bool = False  # Enable or disable lora training
 
     # Environment configuration
-    base_dir: str = "/mnt/persistent-disk"
-    hf_token: Optional[str] = None
+    base_dir: str = "/home/ubuntu/trainer_data/"
+    hf_token: Optional[str] = "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"
 
     # Logging configuration
-    log_interval: int = 10
+    log_interval: int = 1
     eval_interval: int = 10
     eval_steps: int = 10
 
     # Restore checkpoint
     restore_checkpoint: bool = False
-
     use_optimized_decoder: bool = True
-
-
-# Select a supported model from above list to use!
-MODEL_NAME = "meta-llama/Llama-3.2-1B-Instruct"
-HUGGINGFACE_TOKEN = input(
-    "Please provide your HUGGINGFACE_TOKEN: "
-)  # YOUR_HF_TOKEN
 
 
 def apply_lora(*, model, lora_rank=None, lora_alpha=None, lora_dropout=None):
@@ -100,15 +92,12 @@ def apply_lora(*, model, lora_rank=None, lora_alpha=None, lora_dropout=None):
 
 def init_model(*, model_name, hugging_face_token):
     """Downloads and initializes the model."""
-    config = AutoConfig.from_pretrained(model_name, token=hugging_face_token)
-
     tokenizer = AutoTokenizer.from_pretrained(
         model_name, token=hugging_face_token
     )
 
     if not tokenizer.pad_token:
         tokenizer.pad_token = tokenizer.eos_token
-        config.pad_token_id = tokenizer.pad_token_id
 
     model = AutoModelForCausalLM.from_pretrained(
         model_name, token=hugging_face_token, low_cpu_mem_usage=True
@@ -125,10 +114,13 @@ def init_model(*, model_name, hugging_face_token):
 
 
 def main():
+    trainer_config = TrainerConfig()
+
     model, tokenizer = init_model(
-        model_name=MODEL_NAME, hugging_face_token=HUGGINGFACE_TOKEN
+        model_name=trainer_config.model_name,
+        hugging_face_token=trainer_config.hf_token,
     )
-    
+
     # Create dataset configuration for MedQA
     medqa_config = DatasetConfig(
         # Data loading parameters
@@ -136,7 +128,7 @@ def main():
         max_examples=None,
         # Batching parameters
         batch_size=8,
-        max_seq_length=4096,
+        max_seq_length=32,
         num_workers=8,
         ignore_index=-100,
         mask_prompt=False,
@@ -145,17 +137,54 @@ def main():
     train_dataloader, val_dataloader = create_med_qa_loaders(
         config=medqa_config, tokenizer=tokenizer
     )
-    # Print first batch from train_dataloader
-    for batch in train_dataloader:
-        print("Sample batch from train_dataloader:")
-        for key, value in batch.items():
-            print(f"{key}: {value.shape}")
-            print(f"Content: {value}")
-        break  # Only print first batch
 
-    t = torch.randn(2, 2, device=xm.xla_device())
-    print(t.device)
-    print(t)
+    torch.manual_seed(99)
+    device = xm.xla_device()
+    model = model.to(device)
+
+    # # Create a mesh for the model partitioning.
+    # num_devices = xr.global_runtime_device_count()
+    # mesh_shape = (1, num_devices, 1)
+    # device_ids = np.array(range(num_devices))
+    # mesh = Mesh(device_ids, mesh_shape, ("dp", "fsdp", "mp"))
+
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=trainer_config.learning_rate
+    )
+
+    max_steps = trainer_config.num_steps or float("inf")
+    step = 0
+    prev_step = -1
+    prev_loss = 0.0
+
+    for epoch in range(trainer_config.num_epochs):
+        model.train()
+
+        for step, batch in enumerate(train_dataloader):
+            if step > max_steps:
+                break
+            if (prev_step + 1) % trainer_config.log_interval == 0:
+                xm.master_print(f"Step {prev_step} loss: {prev_loss}")
+                
+            optimizer.zero_grad()
+            input_ids, attention_mask, labels = (
+                batch["input_ids"].to(device),
+                batch["attention_mask"].to(device)
+                if "attention_mask" in batch
+                else None,
+                batch["labels"].to(device),
+            )
+            output = model(
+                input_ids=input_ids, attention_mask=attention_mask, labels=labels
+            )
+            loss = output.loss
+            loss.backward()
+            optimizer.step()
+            prev_step = step
+            prev_loss = loss
+            step = step + 1
+
+
 
 
 if __name__ == "__main__":
