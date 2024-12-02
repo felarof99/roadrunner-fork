@@ -23,7 +23,7 @@ class MedQADataset(SFTDataset):
         return prompt, response
 
 
-def create_med_qa_loaders(
+def create_dataloaders(
     config: DatasetConfig, tokenizer: PreTrainedTokenizerBase
 ):
     """Creates and returns train and validation dataloaders for MedQA dataset.
