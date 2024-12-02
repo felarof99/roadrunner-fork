@@ -24,9 +24,9 @@ def partition_model(model, mesh, verbose=False):
     Partition a LLaMA model according to the defined sharding rules.
 
     Args:
-    - model: The LLaMA model to be partitioned
-    - mesh: The device mesh for sharding
-    - verbose: If True, print matching rules (default: False)
+        model: The LLaMA model to be partitioned
+        mesh: The device mesh for sharding
+        verbose: If True, print matching rules (default: False)
     """
 
     for name, module in model.named_modules():
@@ -37,6 +37,8 @@ def partition_model(model, mesh, verbose=False):
                         print(f"Matching rule {rule_pattern} for module {name}")
 
                     # Create partition spec.
-                    partition_spec = tuple(["dp", "fsdp", "mp"].index(s) for s in spec)
+                    partition_spec = tuple(
+                        ["dp", "fsdp", "mp"].index(s) for s in spec
+                    )
                     xs.mark_sharding(module.weight, mesh, partition_spec)
                     break

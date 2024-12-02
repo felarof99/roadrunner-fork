@@ -1,14 +1,17 @@
-import torch
-import torch_xla
-from transformers import (
-    AutoModelForCausalLM,
-    AutoConfig,
-    AutoTokenizer,
-    default_data_collator,
-)
+# Standard library imports
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
+# Third-party imports
+import numpy as np
+import torch
+import torch_xla
+import torch_xla.core.xla_model as xm
+import torch_xla.runtime as xr
+import torch_xla.experimental.xla_sharding as xs
+from torch_xla.experimental.xla_sharding import Mesh
+
+# Hugging Face imports
 from transformers import (
     AutoModelForCausalLM,
     AutoConfig,
@@ -16,37 +19,14 @@ from transformers import (
     default_data_collator,
 )
 from peft import LoraConfig, TaskType, get_peft_model
-from .dataset import create_med_qa_loaders
+
+# Local imports
+from .dataset import create_dataloaders
 from .model import partition_model
+from src.felafax.trainer_engine.data.data import DatasetConfig
 
-from src.felafax.trainer_engine.data.data import (
-    DatasetConfig,
-)
-
-import numpy as np
-import torch_xla.core.xla_model as xm
-import torch_xla.runtime as xr
+# XLA configuration
 xr.use_spmd()
-
-import torch_xla.experimental.xla_sharding as xs
-from torch_xla.experimental.xla_sharding import Mesh
-
-
-def get_mesh(num_tpus: int, mesh_shape: Optional[Tuple[int, int, int]] = None):
-    if mesh_shape is None:
-        if num_tpus == 1:
-            mesh_shape = (1, 1, 1)
-        elif num_tpus == 2:
-            mesh_shape = (1, 2, 1)
-        elif num_tpus == 4:
-            mesh_shape = (1, 2, 2)
-        else:
-            raise ValueError(f"Invalid number of TPUs: {num_tpus}")
-
-    print(f"Creating TPU device mesh with shape {mesh_shape}...")
-    device_mesh = mesh_utils.create_device_mesh(mesh_shape)
-    mesh = jax.sharding.Mesh(device_mesh, axis_names=("batch", "fsdp", "mp"))
-    return mesh
 
 
 @dataclass
@@ -142,7 +122,7 @@ def main():
         mask_prompt=False,
         pad_id=0,
     )
-    train_dataloader, val_dataloader = create_med_qa_loaders(
+    train_dataloader, val_dataloader = create_dataloaders(
         config=medqa_config, tokenizer=tokenizer
     )
 
