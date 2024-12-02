@@ -41,7 +41,7 @@ class TrainerConfig:
     # Training configuration
     num_epochs: int = 1
     num_steps: Optional[int] = 10
-    num_tpus: int = 2
+    num_devices: int = 2
     mesh_shape: Optional[Tuple[int, int, int]] = None
 
     learning_rate: float = 1e-4
@@ -129,14 +129,6 @@ def main():
     torch.manual_seed(99)
     device = xm.xla_device()
     model = model.to(device)
-
-    # Create a mesh for the model partitioning.
-    num_devices = xr.global_runtime_device_count()
-    mesh_shape = (1, num_devices, 1)
-    device_ids = np.array(range(num_devices))
-    mesh = Mesh(device_ids, mesh_shape, ("dp", "fsdp", "mp"))
-
-    partition_model(model=model, mesh=mesh)
                         
     optimizer = torch.optim.SGD(
         model.parameters(), lr=trainer_config.learning_rate
