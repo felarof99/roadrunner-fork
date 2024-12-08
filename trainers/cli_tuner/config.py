@@ -11,7 +11,7 @@ import jax
 class CLITunerDataConfig(DatasetConfig):
     """Configuration for MedQA dataset"""
 
-    data_source: str = "ngram/medchat-qa"
+    data_source: str = "/home/dataset/test.jsonl"
     batch_size: int = 8
 
     max_seq_length: int = 4096
@@ -20,6 +20,8 @@ class CLITunerDataConfig(DatasetConfig):
 
     dataset_input_field: str = "instruction"
     dataset_output_field: str = "output"
+
+    split: str = "train"
 
 
 @dataclass
