@@ -265,6 +265,8 @@ class Trainer:
         max_steps = self.trainer_config.num_steps or float("inf")
 
         prev_step = 0
+        loss, accuracy = 0.0, 0.0
+        val_loss, val_accuracy = 0.0, 0.0
         prev_loss, prev_accuracy = 0.0, 0.0
         prev_val_loss, prev_val_accuracy = 0.0, 0.0
 
@@ -298,7 +300,7 @@ class Trainer:
                 optimizer_state = jax.device_put(
                     optimizer_state, NamedSharding(self.mesh, PS())
                 )
-
+                
                 (
                     loss,
                     (accuracy, model_params, optimizer_state),
