@@ -11,6 +11,7 @@ data_config:
   max_seq_length: 32
   dataset_input_field: "input"
   dataset_output_field: "response"
+  split: "train"
 
 trainer_config:
   model_name: "meta-llama/Llama-3.2-1B-Instruct"
