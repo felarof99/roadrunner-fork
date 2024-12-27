@@ -61,10 +61,13 @@ from src.felafax.trainer_engine.models.llama3.jax.model import (
     LlamaConfig,
 )
 
+
 def jax_rotate_half(x):
     # Splits tensor in half and swaps components with sign change for rotary embedding
     x1, x2 = jnp.split(x, 2, axis=-1)
     return jnp.concatenate((-x2, x1), axis=-1)
+
+
 def jax_apply_rotary_pos_emb(q, k, cos, sin):
     # Applies rotary positional embeddings to query and key tensors
     q_embed = (q * cos) + (jax_rotate_half(q) * sin)
@@ -76,6 +79,8 @@ def torch_rotate_half(x):
     # Splits tensor in half and swaps components with sign change for rotary embedding in PyTorch
     x1, x2 = x[..., : x.shape[-1] // 2], x[..., x.shape[-1] // 2 :]
     return torch.cat((-x2, x1), dim=-1)
+
+
 def torch_apply_rotary_pos_emb(q, k, cos, sin):
     # Applies rotary positional embeddings to query and key tensors in PyTorch
     q_embed = (q * cos) + (torch_rotate_half(q) * sin)
