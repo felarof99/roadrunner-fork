@@ -349,7 +349,7 @@ def test_llama_model(hf_model, eqx_config):
     # Unpacks the tokenizer and Hugging Face model
     tokenizer, hf_model = hf_model
     # Initializes the Equinox LlamaModel
-    eqx_model = LlamaModel(eqx_config)
+    eqx_model = LlamaModel(eqx_config, use_optimized_decoder=False)
 
     # Copies weights from Hugging Face to Equinox model
     eqx_model = eqx.tree_at(
@@ -428,10 +428,13 @@ def test_llama_model(hf_model, eqx_config):
 
 def test_llama_for_causal_lm(hf_model, eqx_config):
     """Tests the LlamaForCausalLM module for equivalence."""
+    # Clear any existing computations from device memory
+    jax.clear_caches()
+    
     # Unpacks the tokenizer and Hugging Face model
     tokenizer, hf_model = hf_model
     # Initializes the Equinox LlamaForCausalLM model
-    eqx_model = LlamaForCausalLM(eqx_config)
+    eqx_model = LlamaForCausalLM(eqx_config, use_optimized_decoder=False)
 
     # Copies weights from Hugging Face to Equinox model
     eqx_model = eqx.tree_at(
