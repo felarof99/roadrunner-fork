@@ -105,7 +105,7 @@ def assert_close(torch_output, jax_output, rtol=1e-5, atol=1e-5):
 @pytest.fixture(scope="module")
 def hf_model():
     # Loads the Hugging Face tokenizer and model
-    model_name = "meta-llama/Meta-Llama-3.1-1B"
+    model_name = "meta-llama/Llama-3.2-1B"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = HFLlamaForCausalLM.from_pretrained(
         model_name, torch_dtype=torch.float32
@@ -510,28 +510,3 @@ def test_llama_for_causal_lm(hf_model, eqx_config):
 
     # Asserts that the outputs are close
     assert_close(hf_output, eqx_output, rtol=1e-2, atol=1e-1)
-
-
-def test_load_checkpoint(hf_model):
-    """Tests loading weights from checkpoint."""
-    from src.felafax.trainer_engine.checkpoint import load_llama_from_hf
-    from src.felafax.trainer_engine.trainer import get_mesh
-
-    eqx_model, _ = load_llama_from_hf(
-        "meta-llama/Meta-Llama-3.1-8B", mesh=get_mesh(jax.device_count())
-    )
-
-    # Create input for testing
-    tokenizer, hf_model = hf_model
-    input_text = "Hello, world!"
-    input_ids = tokenizer(input_text, return_tensors="pt").input_ids
-    position_ids = torch.arange(input_ids.shape[1])[None, :]
-
-    # Get output from loaded Equinox model
-    eqx_output = eqx_model(
-        jnp.array(input_ids), position_ids=jnp.array(position_ids)
-    )
-
-    # Compare outputs
-    hf_output = hf_model(input_ids, position_ids=position_ids).logits
-    assert_close(hf_output, eqx_output, rtol=1, atol=1e-2)

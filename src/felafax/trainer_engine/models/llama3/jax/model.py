@@ -652,7 +652,7 @@ class LlamaForCausalLM(eqx.Module):
         param_dtype=jnp.float32,
         compute_dtype=jnp.float32,
         key=None,
-        use_optimized_decoder=True,
+        use_optimized_decoder=False,
     ):
         if key is None:
             key = jax.random.PRNGKey(99)
