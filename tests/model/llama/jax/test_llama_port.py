@@ -105,7 +105,7 @@ def assert_close(torch_output, jax_output, rtol=1e-5, atol=1e-5):
 @pytest.fixture(scope="module")
 def hf_model():
     # Loads the Hugging Face tokenizer and model
-    model_name = "meta-llama/Meta-Llama-3.1-8B"
+    model_name = "meta-llama/Meta-Llama-3.1-1B"
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = HFLlamaForCausalLM.from_pretrained(
         model_name, torch_dtype=torch.float32
